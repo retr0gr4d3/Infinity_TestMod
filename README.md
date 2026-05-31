@@ -13,6 +13,7 @@ Features:
   - [x] Interceptor (halt communications)
   - [x] Sniffer (log Server + Client packets)
   - [x] Sender (send commands to the server)
+  - [x] Receiver (fake packets from the AQ2D_Server)
 - [ ] More to come...
 
 Feel free to open pull requests and contribute.
