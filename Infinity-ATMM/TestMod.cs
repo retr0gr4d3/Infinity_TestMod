@@ -28,6 +28,11 @@ namespace Infinity_TestMod
         public static Rect senderWindowRect = new(660, 865, 500, 165);
         private static string senderCmdInput = "tfer";
         private static string senderParamsInput = "<charname>,lair,0,Enter,Spawn";
+        public static bool showReceiverWindow = false;
+        public static Rect receiverWindowRect = new(660, 1040, 500, 270);
+        private static string receiverJsonInput = "{\n  \"Cmd\": \"\",\n  \"Params\": {}\n}";
+        private static Vector2 receiverScrollPosition = Vector2.zero;
+        private static System.Reflection.MethodInfo _wrapAndQueueResponseMethod = null;
         public static System.Collections.Generic.List<string> interceptedPacketsLog = new();
         private static Vector2 interceptorScrollPosition = Vector2.zero;
 
@@ -366,6 +371,18 @@ namespace Infinity_TestMod
                     senderWindowRect = GUI.Window(9995, senderWindowRect, DrawSenderWindow, "Packet Sender");
                 }
             }
+
+            if (showWindow && showReceiverWindow)
+            {
+                if (windowStyle != null)
+                {
+                    receiverWindowRect = GUI.Window(9994, receiverWindowRect, DrawReceiverWindow, "Packet Receiver", windowStyle);
+                }
+                else
+                {
+                    receiverWindowRect = GUI.Window(9994, receiverWindowRect, DrawReceiverWindow, "Packet Receiver");
+                }
+            }
         }
 
         private void DrawWindow(int windowID)
@@ -631,10 +648,16 @@ namespace Infinity_TestMod
                 showSnifferWindow = !showSnifferWindow;
             }
 
-            string senderBtnText = showSenderWindow ? "Hide Sender" : "Packet Sender";
-            if (GUI.Button(new Rect(20, 450, 260, 35), senderBtnText, closeButtonStyle))
+            string senderBtnText = showSenderWindow ? "Hide Sender" : "Sender";
+            if (GUI.Button(new Rect(20, 450, 125, 35), senderBtnText, closeButtonStyle))
             {
                 showSenderWindow = !showSenderWindow;
+            }
+
+            string receiverBtnText = showReceiverWindow ? "Hide Receiver" : "Receiver";
+            if (GUI.Button(new Rect(155, 450, 125, 35), receiverBtnText, closeButtonStyle))
+            {
+                showReceiverWindow = !showReceiverWindow;
             }
 
             if (closeButtonStyle != null)
@@ -988,6 +1011,94 @@ namespace Infinity_TestMod
             GUI.DragWindow(new Rect(0, 0, senderWindowRect.width, 30));
         }
 
+        private void DrawReceiverWindow(int windowID)
+        {
+            float winWidth = receiverWindowRect.width;
+            float pad = 20f;
+            float innerW = winWidth - pad * 2;
+
+            GUI.Label(new Rect(pad, 35, innerW, 20), "Server Packet Injector (Fake Server -> Client)", labelStyle);
+
+            GUI.Label(new Rect(pad, 60, innerW, 20), "Enter raw server JSON payload:", labelStyle);
+
+            float contentWidth = innerW - 4;
+            float contentHeight = 150f;
+
+            receiverScrollPosition = GUI.BeginScrollView(
+                new Rect(pad, 85, innerW, 120),
+                receiverScrollPosition,
+                new Rect(0, 0, contentWidth, contentHeight)
+            );
+
+            receiverJsonInput = GUI.TextArea(
+                new Rect(0, 0, contentWidth, contentHeight),
+                receiverJsonInput,
+                previewTextStyle ?? GUI.skin.textArea
+            );
+
+            GUI.EndScrollView();
+
+            float btnW = (innerW - 10) / 3f;
+
+            if (GUI.Button(new Rect(pad, 215, btnW, 35), "Inject", closeButtonStyle))
+            {
+                string json = receiverJsonInput.Trim();
+                if (string.IsNullOrEmpty(json))
+                {
+                    LoggerInstance.Error("[Packet Receiver] Cannot inject empty JSON.");
+                }
+                else
+                {
+                    FakeServerPacket(json);
+                }
+            }
+
+            if (GUI.Button(new Rect(pad + btnW + 5, 215, btnW, 35), "Clear", closeButtonStyle))
+            {
+                receiverJsonInput = "{\n  \"Cmd\": \"\",\n  \"Params\": {}\n}";
+            }
+
+            if (GUI.Button(new Rect(pad + (btnW + 5) * 2, 215, btnW, 35), "Close", closeButtonStyle))
+            {
+                showReceiverWindow = false;
+            }
+
+            GUI.DragWindow(new Rect(0, 0, winWidth, 30));
+        }
+
+        public static void FakeServerPacket(string json)
+        {
+            if (string.IsNullOrEmpty(json)) return;
+            try
+            {
+                if (AEC.Instance != null)
+                {
+                    if (_wrapAndQueueResponseMethod == null)
+                    {
+                        _wrapAndQueueResponseMethod = typeof(AEC).GetMethod("WrapAndQueueResponse", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                    }
+                    if (_wrapAndQueueResponseMethod != null)
+                    {
+                        byte[] data = System.Text.Encoding.UTF8.GetBytes(json);
+                        _wrapAndQueueResponseMethod.Invoke(AEC.Instance, new object[] { data });
+                        MelonLogger.Msg("[Packet Receiver] Successfully injected fake server packet.");
+                    }
+                    else
+                    {
+                        MelonLogger.Error("[Packet Receiver] Could not find WrapAndQueueResponse method via reflection.");
+                    }
+                }
+                else
+                {
+                    MelonLogger.Error("[Packet Receiver] AEC.Instance is null, cannot inject packet.");
+                }
+            }
+            catch (System.Exception ex)
+            {
+                MelonLogger.Error($"[Packet Receiver] Error injecting fake packet: {ex.Message}");
+            }
+        }
+
         public static bool IsMouseOverUI()
         {
             float mouseX = Input.mousePosition.x;
@@ -1018,6 +1129,11 @@ namespace Infinity_TestMod
             }
 
             if (showWindow && showSenderWindow && senderWindowRect.Contains(imguiMousePos))
+            {
+                return true;
+            }
+
+            if (showWindow && showReceiverWindow && receiverWindowRect.Contains(imguiMousePos))
             {
                 return true;
             }
