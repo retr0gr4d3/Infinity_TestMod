@@ -8,45 +8,30 @@
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
   </PropertyGroup>
 
+  <PropertyGroup>
+    <!-- Dynamic installation path detection -->
+    <AQWPath Condition="'$(AQWPath)' == ''">$(AQW_PATH)</AQWPath>
+    <AQWPath Condition="'$(AQWPath)' == ''">$([MSBuild]::GetRegistryValueFromView('HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Steam App 2094530', 'InstallLocation', null, RegistryView.Registry64, RegistryView.Registry32))</AQWPath>
+    <AQWPath Condition="'$(AQWPath)' == ''">$([MSBuild]::GetRegistryValueFromView('HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Steam App 1979810', 'InstallLocation', null, RegistryView.Registry64, RegistryView.Registry32))</AQWPath>
+    
+    <SteamPath Condition="'$(SteamPath)' == ''">$([MSBuild]::GetRegistryValueFromView('HKEY_CURRENT_USER\Software\Valve\Steam', 'SteamPath', null, RegistryView.Registry64, RegistryView.Registry32))</SteamPath>
+    <AQWPath Condition="'$(AQWPath)' == '' and '$(SteamPath)' != ''">$(SteamPath)\steamapps\common\AdventureQuest Worlds Unity Playtest</AQWPath>
+    
+    <AQWPath Condition="'$(AQWPath)' == ''">C:\Program Files (x86)\Steam\steamapps\common\AdventureQuest Worlds Unity Playtest</AQWPath>
+    <AQWPath>$([System.IO.Path]::GetFullPath('$(AQWPath)'))</AQWPath>
+  </PropertyGroup>
+
   <Target Name="PostBuild" AfterTargets="Build">
-    <Copy SourceFiles="$(OutputPath)$(AssemblyName).dll" DestinationFolder="C:\Program Files (x86)\Steam\steamapps\common\AdventureQuest Worlds Unity Playtest\Mods" />
+    <Copy SourceFiles="$(OutputPath)$(AssemblyName).dll" DestinationFolder="$(AQWPath)\Mods" />
   </Target>
 
   <ItemGroup>
-    <Reference Include="0Harmony">
-      <HintPath>..\..\..\Games\steamapps\common\AdventureQuest Worlds Unity Playtest\MelonLoader\net6\0Harmony.dll</HintPath>
+    <Reference Include="0Harmony;MelonLoader">
+      <HintPath>$(AQWPath)\MelonLoader\net6\%(Identity).dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="Assembly-CSharp">
-      <HintPath>..\..\..\Games\steamapps\common\AdventureQuest Worlds Unity Playtest\AdventureQuest Worlds Infinity_Data\Managed\Assembly-CSharp.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="MelonLoader">
-      <HintPath>..\..\..\Games\steamapps\common\AdventureQuest Worlds Unity Playtest\MelonLoader\net6\MelonLoader.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="Newtonsoft.Json">
-      <HintPath>..\..\..\Games\steamapps\common\AdventureQuest Worlds Unity Playtest\AdventureQuest Worlds Infinity_Data\Managed\Newtonsoft.Json.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="UnityEngine.CoreModule">
-      <HintPath>..\..\..\Games\steamapps\common\AdventureQuest Worlds Unity Playtest\AdventureQuest Worlds Infinity_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="UnityEngine.ImageConversionModule">
-      <HintPath>..\..\..\Games\steamapps\common\AdventureQuest Worlds Unity Playtest\AdventureQuest Worlds Infinity_Data\Managed\UnityEngine.ImageConversionModule.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="UnityEngine.IMGUIModule">
-      <HintPath>..\..\..\Games\steamapps\common\AdventureQuest Worlds Unity Playtest\AdventureQuest Worlds Infinity_Data\Managed\UnityEngine.IMGUIModule.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="UnityEngine.InputLegacyModule">
-      <HintPath>..\..\..\Games\steamapps\common\AdventureQuest Worlds Unity Playtest\AdventureQuest Worlds Infinity_Data\Managed\UnityEngine.InputLegacyModule.dll</HintPath>
-      <Private>False</Private>
-    </Reference>
-    <Reference Include="UnityEngine.TextRenderingModule">
-      <HintPath>..\..\..\Games\steamapps\common\AdventureQuest Worlds Unity Playtest\AdventureQuest Worlds Infinity_Data\Managed\UnityEngine.TextRenderingModule.dll</HintPath>
+    <Reference Include="Assembly-CSharp;Newtonsoft.Json;UnityEngine.CoreModule;UnityEngine.ImageConversionModule;UnityEngine.IMGUIModule;UnityEngine.InputLegacyModule;UnityEngine.TextRenderingModule">
+      <HintPath>$(AQWPath)\AdventureQuest Worlds Infinity_Data\Managed\%(Identity).dll</HintPath>
       <Private>False</Private>
     </Reference>
   </ItemGroup>
