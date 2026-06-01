@@ -1,5 +1,6 @@
 ﻿using HarmonyLib;
 using MelonLoader;
+using Infinity_TestMod.Util;
 
 namespace Infinity_TestMod.Patches
 {
@@ -50,12 +51,24 @@ namespace Infinity_TestMod.Patches
     {
         public static void Prefix(byte[] data)
         {
-            if (data != null && TestMod.snifferServerActive)
+            if (data == null) return;
+
+            // Always-on disk log — independent of the in-memory sniffer toggle
+            // so analysis tools (state.py, gui.py) get a complete capture.
+            string rawJson;
+            try
+            {
+                rawJson = System.Text.Encoding.UTF8.GetString(data);
+                PacketLog.Write("s2c", rawJson);
+                _DirectoryMiner.Run(rawJson);
+            }
+            catch { return; }
+
+            if (TestMod.snifferServerActive)
             {
                 try
                 {
-                    string rawJson = System.Text.Encoding.UTF8.GetString(data);
-                    string cmd = Util.extractValueFromJsonString("Cmd", rawJson) ?? "unknown";
+                    string cmd = global::Util.extractValueFromJsonString("Cmd", rawJson) ?? "unknown";
 
                     string typeName = "Response";
                     System.Type t = ResponseTypes.Get(cmd);
@@ -90,6 +103,41 @@ namespace Infinity_TestMod.Patches
         }
     }
 
+    /// <summary>
+    /// Skim each s2c packet for catalog-worthy data (quest defs, shops) and
+    /// feed them into Directory for browsing. Kept narrow on purpose — we
+    /// only parse when the Cmd matches, so this stays cheap on the hot path.
+    /// </summary>
+    internal static class _DirectoryMiner
+    {
+        public static void Run(string rawJson)
+        {
+            // Quick prefilter — avoid parsing every packet just to find none
+            if (rawJson == null) return;
+            bool maybeQuests = rawJson.Contains("\"getQuests\"");
+            bool maybeShop = rawJson.Contains("\"loadShop\"");
+            if (!maybeQuests && !maybeShop) return;
+            try
+            {
+                var obj = Newtonsoft.Json.Linq.JObject.Parse(rawJson);
+                string cmd = (string)obj["Cmd"];
+                if (cmd == "getQuests" && obj["quests"] is Newtonsoft.Json.Linq.JObject qs)
+                {
+                    foreach (var p in qs.Properties())
+                    {
+                        if (int.TryParse(p.Name, out int qid) && p.Value is Newtonsoft.Json.Linq.JObject qdef)
+                            Directory.RecordQuest(qid, qdef);
+                    }
+                }
+                else if (cmd == "loadShop" && obj["shop"] is Newtonsoft.Json.Linq.JObject shop)
+                {
+                    Directory.RecordShop(shop);
+                }
+            }
+            catch { /* malformed packet — log noise isn't worth surfacing */ }
+        }
+    }
+
     [HarmonyPatch(typeof(AEC), nameof(AEC.sendRequest))]
     public static class AECsendRequestPatch
     {
@@ -97,39 +145,37 @@ namespace Infinity_TestMod.Patches
 
         public static void Prefix(Request r)
         {
-            if (r != null && TestMod.snifferClientActive)
+            if (r == null) return;
+
+            // Serialize once — used for both the disk log and the in-memory
+            // sniffer below. Mirrors AEC's own serializer when reachable.
+            string rawData;
+            try
+            {
+                if (_serializeMethod == null)
+                {
+                    _serializeMethod = typeof(AEC).GetMethod("Serialize", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                }
+                if (_serializeMethod != null && AEC.Instance != null)
+                    rawData = (string)_serializeMethod.Invoke(AEC.Instance, new object[] { r });
+                else
+                    rawData = Newtonsoft.Json.JsonConvert.SerializeObject(r);
+            }
+            catch
+            {
+                try { rawData = Newtonsoft.Json.JsonConvert.SerializeObject(r); }
+                catch { rawData = null; }
+            }
+
+            // Always-on disk log
+            if (!string.IsNullOrEmpty(rawData))
+                PacketLog.Write("c2s", rawData);
+
+            if (TestMod.snifferClientActive)
             {
                 string cmd = r.Cmd ?? "unknown";
                 string typeName = r.GetType().Name;
-
-                string rawData = "";
-                try
-                {
-                    if (_serializeMethod == null)
-                    {
-                        _serializeMethod = typeof(AEC).GetMethod("Serialize", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                    }
-
-                    if (_serializeMethod != null && AEC.Instance != null)
-                    {
-                        rawData = (string)_serializeMethod.Invoke(AEC.Instance, new object[] { r });
-                    }
-                    else
-                    {
-                        rawData = Newtonsoft.Json.JsonConvert.SerializeObject(r);
-                    }
-                }
-                catch
-                {
-                    try
-                    {
-                        rawData = Newtonsoft.Json.JsonConvert.SerializeObject(r);
-                    }
-                    catch
-                    {
-                        rawData = "(serialization failed)";
-                    }
-                }
+                if (string.IsNullOrEmpty(rawData)) rawData = "(serialization failed)";
 
                 string display = $"<color=orange>[CLIENT]</color> {typeName} ({cmd})";
                 lock (TestMod.snifferLog)

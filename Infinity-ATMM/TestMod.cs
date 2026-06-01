@@ -2,6 +2,7 @@ using MelonLoader;
 using System.Reflection;
 using UnityEngine;
 using Infinity_TestMod.Patches;
+using Infinity_TestMod.Util;
 
 
 namespace Infinity_TestMod
@@ -9,7 +10,7 @@ namespace Infinity_TestMod
     public class TestMod : MelonMod
     {
         public static bool showWindow = false;
-        public static Rect windowRect = new(20, 100, 300, 550);
+        public static Rect windowRect = new(20, 100, 300, 590);
         public static readonly Rect ToggleButtonRect = new(10, 20, 64, 64);
 
         public static bool forceMergeShop = false;
@@ -25,14 +26,42 @@ namespace Infinity_TestMod
         public static bool showSnifferWindow = false;
         public static Rect snifferWindowRect = new(660, 480, 500, 520);
         public static bool showSenderWindow = false;
-        public static Rect senderWindowRect = new(660, 865, 500, 165);
+        public static Rect senderWindowRect = new(660, 865, 500, 200);
         private static string senderCmdInput = "tfer";
         private static string senderParamsInput = "<charname>,lair,0,Enter,Spawn";
-        public static bool showReceiverWindow = false;
-        public static Rect receiverWindowRect = new(660, 1040, 500, 270);
-        private static string receiverJsonInput = "{\n  \"Cmd\": \"\",\n  \"Params\": {}\n}";
-        private static Vector2 receiverScrollPosition = Vector2.zero;
-        private static System.Reflection.MethodInfo _wrapAndQueueResponseMethod = null;
+        // When true the Sender skips comma-splitting and sends the whole input
+        // as a single Param string — needed for chat-style commands where the
+        // payload contains literal commas (e.g. `message`: "hi, friend").
+        private static bool senderSingleString = false;
+
+        // Spoof: synthesize server→client packets locally, bypassing the wire.
+        public static bool showSpoofWindow = false;
+        public static Rect spoofWindowRect = new(660, 100, 500, 220);
+
+        // QuestRunner: end-to-end automation. Single instance, ticked from
+        // OnUpdate so all game-side calls (target setting, request sends)
+        // stay on the Unity main thread.
+        public static QuestRunner questRunner = new QuestRunner();
+        public static bool showQuestRunnerWindow = false;
+        public static Rect questRunnerWindowRect = new(20, 660, 640, 405);
+        private static string questRunnerIdInput = "1";
+        private static string questRunnerItersInput = "10";
+        // Optional cell-hop before hunting. Empty Frame = no hop (stay where you are).
+        private static string questRunnerFrameInput = "";
+        private static string questRunnerPadInput = "Spawn";
+        public static System.Collections.Generic.List<string> questRunnerLog = new();
+        private static Vector2 questRunnerLogScroll = Vector2.zero;
+        private static bool showQuestPicker = false;
+        private static string questPickerFilter = "";
+        private static Vector2 questPickerScroll = Vector2.zero;
+        // Chain picker: index into QuestChains.Names + button to run.
+        private static int questChainPickerIndex = 0;
+        private static int spoofPreset = 0; // 0=rNotify  1=chatm SERVER  2=chatm zone  3=custom JSON
+        private static readonly string[] spoofPresetLabels = {
+            "rNotify (banner)", "chatm SERVER", "chatm zone (as me)", "Custom JSON"
+        };
+        private static string spoofText = "Hello from the void";
+        private static string spoofCustomJson = "{\"Cmd\":\"rNotify\",\"msg\":\"hi\"}";
         public static System.Collections.Generic.List<string> interceptedPacketsLog = new();
         private static Vector2 interceptorScrollPosition = Vector2.zero;
 
@@ -83,10 +112,19 @@ namespace Infinity_TestMod
         public override void OnInitializeMelon()
         {
             LoggerInstance.Msg("Alpha Testing Mod Menu Initialized successfully!");
+            PacketLog.Init();
+            Directory.Init();
+            QuestChains.Init();
             var harmony = new HarmonyLib.Harmony(nameof(TestMod));
             harmony.PatchAll();
             LoggerInstance.Msg("Harmony patches applied!");
             GenerateTextures();
+        }
+
+        public override void OnApplicationQuit()
+        {
+            Directory.Save();
+            PacketLog.Close();
         }
 
         private static bool IsSkillSlotButtonDisabled(SkillSlotButton button)
@@ -105,6 +143,9 @@ namespace Infinity_TestMod
 
         public override void OnUpdate()
         {
+            // Tick the quest runner every frame. It's a no-op when Idle/Done/Failed.
+            try { questRunner?.Tick(); } catch (System.Exception ex) { LoggerInstance.Error($"QuestRunner tick: {ex.Message}"); }
+
             if (autoskillsActive)
             {
                 if (Time.time >= nextSkillTime)
@@ -372,15 +413,27 @@ namespace Infinity_TestMod
                 }
             }
 
-            if (showWindow && showReceiverWindow)
+            if (showWindow && showSpoofWindow)
             {
                 if (windowStyle != null)
                 {
-                    receiverWindowRect = GUI.Window(9994, receiverWindowRect, DrawReceiverWindow, "Packet Receiver", windowStyle);
+                    spoofWindowRect = GUI.Window(9994, spoofWindowRect, DrawSpoofWindow, "Packet Spoof (s2c local)", windowStyle);
                 }
                 else
                 {
-                    receiverWindowRect = GUI.Window(9994, receiverWindowRect, DrawReceiverWindow, "Packet Receiver");
+                    spoofWindowRect = GUI.Window(9994, spoofWindowRect, DrawSpoofWindow, "Packet Spoof (s2c local)");
+                }
+            }
+
+            if (showWindow && showQuestRunnerWindow)
+            {
+                if (windowStyle != null)
+                {
+                    questRunnerWindowRect = GUI.Window(9993, questRunnerWindowRect, DrawQuestRunnerWindow, "Quest Runner", windowStyle);
+                }
+                else
+                {
+                    questRunnerWindowRect = GUI.Window(9993, questRunnerWindowRect, DrawQuestRunnerWindow, "Quest Runner");
                 }
             }
         }
@@ -389,59 +442,79 @@ namespace Infinity_TestMod
         {
             GUI.Label(new Rect(20, 35, 260, 25), "Test Mod Implementation", labelStyle);
 
-            string accessLevelText = "Player is null";
-            bool is101 = false;
+            // Read current access level once for the tier buttons' active marker.
             int currentLevel = -1;
-
             try
             {
-                if (Entity.mainPlayer != null)
-                {
-                    currentLevel = Entity.mainPlayer.AccessLevel;
-                    is101 = (currentLevel == 101);
-                    accessLevelText = is101 ? "Player: 101" : $"Access: {currentLevel}";
-                }
+                if (Entity.mainPlayer != null) currentLevel = Entity.mainPlayer.AccessLevel;
             }
             catch (System.Exception ex)
             {
-                accessLevelText = "Error reading player";
                 LoggerInstance.Error($"Error reading Entity.mainPlayer properties: {ex}");
             }
 
             bool playerExists = false;
-            try
-            {
-                playerExists = (Entity.mainPlayer != null);
-            }
-            catch { }
+            try { playerExists = (Entity.mainPlayer != null); } catch { }
 
+            // Tier buttons. These match the real tiers gated in the game's
+            // hasAccess(N) checks across the decomp + the colors mapped in
+            // Util.GetAccessLevelColor. Purely client-side — server still
+            // enforces real privileges per command.
+            //
+            //   AL=30  Teal     — basic dev (DevCommand, DevWindow, charItem)
+            //   AL=40  Lime     — mod (clearAction, questReset, chat /dialog)
+            //   AL=50  Purple   — admin (shares color with 100; +InitPlayer extras)
+            //   AL=60  Gold     — senior admin (Avatar, Machine cmds)
+            //   AL=100 Purple   — full dev (requestKillMap and everything below)
+            //
+            // Membership is a SEPARATE field (UpgradeDays > 0), not an
+            // AccessLevel — gets its own toggle below.
+            // Membership toggle on the left of the row, then 5 tier buttons.
+            // Member = UpgradeDays > 0 (separate from AccessLevel). Active
+            // state for any of these prefixes the label with ▶ so the user
+            // can see current state without a separate readout.
+            bool isMember = false;
+            try { if (Entity.mainPlayer != null) isMember = Entity.mainPlayer.UpgradeDays > 0; } catch { }
+            string memLabel = isMember ? "▶ Mem" : "Mem";
             if (playerExists)
             {
-                if (GUI.Button(new Rect(20, 70, 80, 35), "FakeDev", closeButtonStyle))
+                if (GUI.Button(new Rect(20, 70, 50, 35), memLabel, closeButtonStyle))
                 {
                     try
                     {
-                        Entity.mainPlayer.AccessLevel = 101;
-                        LoggerInstance.Msg("Set access level to 101.");
+                        Entity.mainPlayer.UpgradeDays = isMember ? 0 : 30;
+                        // Same nameplate-refresh issue as AccessLevel — though
+                        // Player.updateNameColor() doesn't actually pass the
+                        // upgraded=true branch to Util.GetAccessLevelColor, so
+                        // your OWN nameplate may not visibly tint blue even
+                        // after this. Party UI (UIPartyMemberSlot) does honor
+                        // the upgraded flag, so members in your party should
+                        // recolor correctly.
+                        Entity.mainPlayer.updateNameColor();
+                        LoggerInstance.Msg($"Set client UpgradeDays to {Entity.mainPlayer.UpgradeDays} (member={!isMember}).");
                     }
                     catch (System.Exception ex)
                     {
-                        LoggerInstance.Error($"Error setting access level: {ex}");
+                        LoggerInstance.Error($"Error toggling membership: {ex}");
                     }
                 }
             }
             else
             {
                 GUI.enabled = false;
-                GUI.Button(new Rect(20, 70, 80, 35), "FakeDev", closeButtonStyle);
+                GUI.Button(new Rect(20, 70, 50, 35), memLabel, closeButtonStyle);
                 GUI.enabled = true;
             }
 
-            GUI.Label(new Rect(105, 70, 90, 35), accessLevelText, labelStyle);
+            DrawAccessTier(73,  30, "30",  30,  currentLevel, playerExists);
+            DrawAccessTier(106, 30, "40",  40,  currentLevel, playerExists);
+            DrawAccessTier(139, 30, "50",  50,  currentLevel, playerExists);
+            DrawAccessTier(172, 30, "60",  60,  currentLevel, playerExists);
+            DrawAccessTier(205, 30, "100", 100, currentLevel, playerExists);
 
             if (playerExists)
             {
-                if (GUI.Button(new Rect(200, 70, 80, 35), "Dev UI", closeButtonStyle))
+                if (GUI.Button(new Rect(238, 70, 42, 35), "Dev UI", closeButtonStyle))
                 {
                     try
                     {
@@ -457,7 +530,7 @@ namespace Infinity_TestMod
             else
             {
                 GUI.enabled = false;
-                GUI.Button(new Rect(200, 70, 80, 35), "Dev UI", closeButtonStyle);
+                GUI.Button(new Rect(238, 70, 42, 35), "Dev UI", closeButtonStyle);
                 GUI.enabled = true;
             }
 
@@ -648,28 +721,34 @@ namespace Infinity_TestMod
                 showSnifferWindow = !showSnifferWindow;
             }
 
-            string senderBtnText = showSenderWindow ? "Hide Sender" : "Sender";
+            string senderBtnText = showSenderWindow ? "Hide Sender" : "Packet Sender";
             if (GUI.Button(new Rect(20, 450, 125, 35), senderBtnText, closeButtonStyle))
             {
                 showSenderWindow = !showSenderWindow;
             }
 
-            string receiverBtnText = showReceiverWindow ? "Hide Receiver" : "Receiver";
-            if (GUI.Button(new Rect(155, 450, 125, 35), receiverBtnText, closeButtonStyle))
+            string spoofBtnText = showSpoofWindow ? "Hide Spoof" : "Packet Spoof";
+            if (GUI.Button(new Rect(155, 450, 125, 35), spoofBtnText, closeButtonStyle))
             {
-                showReceiverWindow = !showReceiverWindow;
+                showSpoofWindow = !showSpoofWindow;
+            }
+
+            string runnerBtnText = showQuestRunnerWindow ? "Hide Quest Runner" : "Quest Runner";
+            if (GUI.Button(new Rect(20, 490, 260, 35), runnerBtnText, closeButtonStyle))
+            {
+                showQuestRunnerWindow = !showQuestRunnerWindow;
             }
 
             if (closeButtonStyle != null)
             {
-                if (GUI.Button(new Rect(20, 490, 260, 35), "Close", closeButtonStyle))
+                if (GUI.Button(new Rect(20, 530, 260, 35), "Close", closeButtonStyle))
                 {
                     showWindow = false;
                 }
             }
             else
             {
-                if (GUI.Button(new Rect(20, 490, 260, 35), "Close"))
+                if (GUI.Button(new Rect(20, 530, 260, 35), "Close"))
                 {
                     showWindow = false;
                 }
@@ -950,8 +1029,15 @@ namespace Infinity_TestMod
             GUI.Label(new Rect(20, Y, 40, 25), "Cmd:", labelStyle);
             senderCmdInput = GUI.TextField(new Rect(60, Y, 70, 25), senderCmdInput, textFieldStyle);
 
-            GUI.Label(new Rect(140, Y, 130, 25), "Params (comma-sep):", labelStyle);
+            string paramsLabel = senderSingleString ? "Params (whole string):" : "Params (comma-sep):";
+            GUI.Label(new Rect(140, Y, 130, 25), paramsLabel, labelStyle);
             senderParamsInput = GUI.TextField(new Rect(270, Y, 160, 25), senderParamsInput, textFieldStyle);
+
+            // Single-string toggle — for chat-style commands where the payload
+            // contains literal commas (e.g. `message`: "hi, friend"), splitting
+            // on comma would mangle them.
+            senderSingleString = GUI.Toggle(new Rect(pad, 100, 20, 20), senderSingleString, "");
+            GUI.Label(new Rect(pad + 25, 100, 220, 20), "Single string (no comma split)", labelStyle);
 
             if (GUI.Button(new Rect(440, Y, 40, 25), "Send", closeButtonStyle))
             {
@@ -961,10 +1047,17 @@ namespace Infinity_TestMod
                 System.Collections.Generic.List<string> paramsList = new();
                 if (!string.IsNullOrEmpty(paramsRaw))
                 {
-                    string[] parts = paramsRaw.Split(',');
-                    foreach (string part in parts)
+                    if (senderSingleString)
                     {
-                        paramsList.Add(part.Trim());
+                        paramsList.Add(paramsRaw);
+                    }
+                    else
+                    {
+                        string[] parts = paramsRaw.Split(',');
+                        foreach (string part in parts)
+                        {
+                            paramsList.Add(part.Trim());
+                        }
                     }
                 }
 
@@ -1003,7 +1096,7 @@ namespace Infinity_TestMod
                 }
             }
 
-            if (GUI.Button(new Rect(pad, 115, innerW, 35), "Close Sender", closeButtonStyle))
+            if (GUI.Button(new Rect(pad, 145, innerW, 35), "Close Sender", closeButtonStyle))
             {
                 showSenderWindow = false;
             }
@@ -1011,92 +1104,335 @@ namespace Infinity_TestMod
             GUI.DragWindow(new Rect(0, 0, senderWindowRect.width, 30));
         }
 
-        private void DrawReceiverWindow(int windowID)
+        private void DrawSpoofWindow(int windowID)
         {
-            float winWidth = receiverWindowRect.width;
+            float winWidth = spoofWindowRect.width;
             float pad = 20f;
             float innerW = winWidth - pad * 2;
 
-            GUI.Label(new Rect(pad, 35, innerW, 20), "Server Packet Injector (Fake Server -> Client)", labelStyle);
+            GUI.Label(new Rect(pad, 35, innerW, 20),
+                "Inject server→client packet locally (server never sees it)", labelStyle);
 
-            GUI.Label(new Rect(pad, 60, innerW, 20), "Enter raw server JSON payload:", labelStyle);
-
-            float contentWidth = innerW - 4;
-            float contentHeight = 150f;
-
-            receiverScrollPosition = GUI.BeginScrollView(
-                new Rect(pad, 85, innerW, 120),
-                receiverScrollPosition,
-                new Rect(0, 0, contentWidth, contentHeight)
-            );
-
-            receiverJsonInput = GUI.TextArea(
-                new Rect(0, 0, contentWidth, contentHeight),
-                receiverJsonInput,
-                previewTextStyle ?? GUI.skin.textArea
-            );
-
-            GUI.EndScrollView();
-
-            float btnW = (innerW - 10) / 3f;
-
-            if (GUI.Button(new Rect(pad, 215, btnW, 35), "Inject", closeButtonStyle))
+            // Preset row
+            float btnW = (innerW - 15) / 4f;
+            for (int i = 0; i < spoofPresetLabels.Length; i++)
             {
-                string json = receiverJsonInput.Trim();
-                if (string.IsNullOrEmpty(json))
+                bool selected = (spoofPreset == i);
+                string label = selected ? $"▶ {spoofPresetLabels[i]}" : spoofPresetLabels[i];
+                if (GUI.Button(new Rect(pad + i * (btnW + 5), 60, btnW, 30), label, closeButtonStyle))
                 {
-                    LoggerInstance.Error("[Packet Receiver] Cannot inject empty JSON.");
-                }
-                else
-                {
-                    FakeServerPacket(json);
+                    spoofPreset = i;
                 }
             }
 
-            if (GUI.Button(new Rect(pad + btnW + 5, 215, btnW, 35), "Clear", closeButtonStyle))
+            // Input depending on mode
+            if (spoofPreset == 3)
             {
-                receiverJsonInput = "{\n  \"Cmd\": \"\",\n  \"Params\": {}\n}";
+                GUI.Label(new Rect(pad, 100, innerW, 20), "Custom JSON (must include Cmd):", labelStyle);
+                spoofCustomJson = GUI.TextArea(new Rect(pad, 120, innerW, 50), spoofCustomJson, textFieldStyle);
+            }
+            else
+            {
+                GUI.Label(new Rect(pad, 100, 60, 25), "Text:", labelStyle);
+                spoofText = GUI.TextField(new Rect(pad + 60, 100, innerW - 60, 25), spoofText, textFieldStyle);
             }
 
-            if (GUI.Button(new Rect(pad + (btnW + 5) * 2, 215, btnW, 35), "Close", closeButtonStyle))
+            if (GUI.Button(new Rect(pad, 175, innerW / 2 - 5, 30), "Spoof", closeButtonStyle))
             {
-                showReceiverWindow = false;
+                (bool ok, string info) result = (false, "no-op");
+                try
+                {
+                    switch (spoofPreset)
+                    {
+                        case 0:
+                            result = Spoof.Notify(spoofText);
+                            break;
+                        case 1:
+                            result = Spoof.ChatM(spoofText, "SERVER", "server");
+                            break;
+                        case 2:
+                            {
+                                string name = "Loader";
+                                try { if (Entity.mainPlayer != null) name = Entity.mainPlayer.Name; } catch { }
+                                result = Spoof.ChatM(spoofText, name, "zone");
+                            }
+                            break;
+                        case 3:
+                            result = Spoof.Send(spoofCustomJson);
+                            break;
+                    }
+                }
+                catch (System.Exception ex)
+                {
+                    result = (false, ex.Message);
+                }
+                LoggerInstance.Msg($"[Spoof] ok={result.ok} info={result.info}");
+            }
+
+            if (GUI.Button(new Rect(pad + innerW / 2 + 5, 175, innerW / 2 - 5, 30), "Close Spoof", closeButtonStyle))
+            {
+                showSpoofWindow = false;
             }
 
             GUI.DragWindow(new Rect(0, 0, winWidth, 30));
         }
 
-        public static void FakeServerPacket(string json)
+        /// <summary>
+        /// One tier button in the client-side access-level row. Sets
+        /// Entity.mainPlayer.AccessLevel = level on click; shows a ▶ prefix
+        /// when the player's current level already matches. Disabled when
+        /// no player is loaded.
+        /// </summary>
+        private void DrawAccessTier(float x, float width, string label, int level, int currentLevel, bool playerExists)
         {
-            if (string.IsNullOrEmpty(json)) return;
-            try
+            bool active = (currentLevel == level);
+            string text = active ? "▶ " + label : label;
+            if (!playerExists)
             {
-                if (AEC.Instance != null)
+                GUI.enabled = false;
+                GUI.Button(new Rect(x, 70, width, 35), text, closeButtonStyle);
+                GUI.enabled = true;
+                return;
+            }
+            if (GUI.Button(new Rect(x, 70, width, 35), text, closeButtonStyle))
+            {
+                try
                 {
-                    if (_wrapAndQueueResponseMethod == null)
+                    Entity.mainPlayer.AccessLevel = level;
+                    // The field setter doesn't repaint the nameplate — the
+                    // game only does that during creation. Force the refresh
+                    // ourselves so the user actually sees the tier color.
+                    // (Player.updateNameColor() reads AccessLevel and pushes
+                    //  the result through Util.GetAccessLevelColor.)
+                    Entity.mainPlayer.updateNameColor();
+                    LoggerInstance.Msg($"Set client AccessLevel to {level} ({label}). Server still enforces real privileges.");
+                }
+                catch (System.Exception ex)
+                {
+                    LoggerInstance.Error($"Error setting access level to {level}: {ex}");
+                }
+            }
+        }
+
+        private void DrawQuestRunnerWindow(int windowID)
+        {
+            float winWidth = questRunnerWindowRect.width;
+            float pad = 20f;
+            float innerW = winWidth - pad * 2;
+
+            // Row 1: inputs
+            GUI.Label(new Rect(pad, 35, 70, 25), "Quest ID:", labelStyle);
+            questRunnerIdInput = GUI.TextField(new Rect(pad + 70, 35, 60, 25), questRunnerIdInput, textFieldStyle);
+            // Browse button — opens the picker inline.
+            string browseLabel = showQuestPicker ? "▼" : "▶";
+            if (GUI.Button(new Rect(pad + 132, 35, 24, 25), browseLabel, closeButtonStyle))
+            {
+                showQuestPicker = !showQuestPicker;
+            }
+            GUI.Label(new Rect(pad + 160, 35, 70, 25), "Iters:", labelStyle);
+            questRunnerItersInput = GUI.TextField(new Rect(pad + 210, 35, 60, 25), questRunnerItersInput, textFieldStyle);
+            // Resolved-name preview to the right of Stop, replacing the
+            // previous y=58 line that was colliding with the Frame row.
+            string resolvedName = "?";
+            if (int.TryParse(questRunnerIdInput, out int previewQid)
+                && Directory.Quests.TryGetValue(previewQid, out var qe))
+                resolvedName = qe.name ?? "?";
+            GUI.Label(new Rect(pad + 460, 35, 200, 25),
+                $"  ↳ {resolvedName}", logTextStyle);
+
+            bool isRunning = questRunner.IsRunning;
+            GUI.enabled = !isRunning;
+            if (GUI.Button(new Rect(pad + 280, 35, 80, 25), "Start", closeButtonStyle))
+            {
+                if (int.TryParse(questRunnerIdInput, out int qid) && int.TryParse(questRunnerItersInput, out int iters))
+                {
+                    questRunnerLog.Clear();
+                    questRunner.OnLog = line =>
                     {
-                        _wrapAndQueueResponseMethod = typeof(AEC).GetMethod("WrapAndQueueResponse", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
-                    }
-                    if (_wrapAndQueueResponseMethod != null)
-                    {
-                        byte[] data = System.Text.Encoding.UTF8.GetBytes(json);
-                        _wrapAndQueueResponseMethod.Invoke(AEC.Instance, new object[] { data });
-                        MelonLogger.Msg("[Packet Receiver] Successfully injected fake server packet.");
-                    }
-                    else
-                    {
-                        MelonLogger.Error("[Packet Receiver] Could not find WrapAndQueueResponse method via reflection.");
-                    }
+                        lock (questRunnerLog)
+                        {
+                            questRunnerLog.Add($"{System.DateTime.Now:HH:mm:ss}  {line}");
+                            if (questRunnerLog.Count > 200) questRunnerLog.RemoveAt(0);
+                        }
+                    };
+                    questRunner.Start(qid, iters, questRunnerFrameInput?.Trim() ?? "",
+                                                  string.IsNullOrWhiteSpace(questRunnerPadInput) ? "Spawn" : questRunnerPadInput.Trim());
                 }
                 else
                 {
-                    MelonLogger.Error("[Packet Receiver] AEC.Instance is null, cannot inject packet.");
+                    LoggerInstance.Error("[QuestRunner] qid and iters must be integers");
                 }
             }
-            catch (System.Exception ex)
+            // Second input row: optional in-zone hop. Leave Frame empty to
+            // stay where you are. Current frame is shown on the right so the
+            // user can copy it for next-quest test entries.
+            GUI.Label(new Rect(pad, 62, 70, 22), "Frame:", labelStyle);
+            questRunnerFrameInput = GUI.TextField(new Rect(pad + 50, 62, 90, 22), questRunnerFrameInput, textFieldStyle);
+            GUI.Label(new Rect(pad + 150, 62, 40, 22), "Pad:", labelStyle);
+            questRunnerPadInput = GUI.TextField(new Rect(pad + 190, 62, 80, 22), questRunnerPadInput, textFieldStyle);
+            string hereFrame = "?";
+            try { hereFrame = Entity.mainPlayer?.Frame ?? "?"; } catch { }
+            GUI.Label(new Rect(pad + 280, 62, 200, 22), $"  here: {hereFrame}", logTextStyle);
+            GUI.enabled = true;
+
+            GUI.enabled = isRunning;
+            if (GUI.Button(new Rect(pad + 370, 35, 80, 25), "Stop", closeButtonStyle))
             {
-                MelonLogger.Error($"[Packet Receiver] Error injecting fake packet: {ex.Message}");
+                questRunner.Stop();
             }
+            GUI.enabled = true;
+
+            // Row 3: status
+            string stateStr = $"<b>State:</b> {questRunner.State}    " +
+                              $"<b>Iter:</b> {questRunner.CurrentIteration}/{questRunner.Iterations}";
+            GUI.Label(new Rect(pad, 95, innerW, 20), stateStr, labelStyle);
+            GUI.Label(new Rect(pad, 117, innerW, 20), $"<b>Status:</b> {questRunner.StatusLine}", labelStyle);
+
+            // Row 4: per-objective progress (read live from in-process state)
+            float yObj = 145;
+            try
+            {
+                if (int.TryParse(questRunnerIdInput, out int qid))
+                {
+                    Quest q = Quest.Get(qid);
+                    if (q != null && q.Turnins != null)
+                    {
+                        var pq = Entity.mainPlayer?.Quests;
+                        for (int i = 0; i < q.Turnins.Length && i < 6; i++)
+                        {
+                            var t = q.Turnins[i];
+                            int have = pq?.getQuestObjective(t.QOID)?.Quantity ?? 0;
+                            bool done = pq?.IsObjectiveComplete(t.QOID) ?? false;
+                            string mark = done ? "<color=green>✓</color>" : " ";
+                            GUI.Label(new Rect(pad, yObj + i * 18, innerW, 18),
+                                $"  {mark} {t.QOType,-10} {t.Name}  [{have}/{t.Quantity}]  ref={t.RefIDs}",
+                                logTextStyle);
+                        }
+                    }
+                    else
+                    {
+                        GUI.Label(new Rect(pad, yObj, innerW, 18),
+                            "  (no quest def cached — open the quest UI once)", logTextStyle);
+                    }
+                }
+            }
+            catch { /* layout-time read errors aren't worth surfacing */ }
+
+            // Row 5: event log
+            float logY = 260;
+            GUI.Box(new Rect(pad, logY, innerW, 75), "", GUI.skin.box);
+            float logH;
+            lock (questRunnerLog) { logH = System.Math.Max(65f, questRunnerLog.Count * 16f); }
+            questRunnerLogScroll = GUI.BeginScrollView(
+                new Rect(pad, logY, innerW, 75),
+                questRunnerLogScroll,
+                new Rect(0, 0, innerW - 20, logH));
+            lock (questRunnerLog)
+            {
+                for (int i = 0; i < questRunnerLog.Count; i++)
+                {
+                    GUI.Label(new Rect(5, i * 16, innerW - 30, 16), questRunnerLog[i], logTextStyle);
+                }
+            }
+            GUI.EndScrollView();
+
+            // Chain selector row — one click per chain plus a Run button.
+            // The dropdown is a cycle button (clicking advances through chain
+            // names) since IMGUI doesn't have a native combobox. Keeps the
+            // single-quest fields above usable for one-off testing.
+            var chainNames = new System.Collections.Generic.List<string>(QuestChains.Names);
+            string currentChainName = chainNames.Count == 0
+                ? "(none — edit chains.json)"
+                : chainNames[questChainPickerIndex % chainNames.Count];
+            int currentEntryCount = chainNames.Count == 0 ? 0 : (QuestChains.Get(currentChainName)?.Count ?? 0);
+
+            GUI.Label(new Rect(pad, 343, 60, 24), "Chain:", labelStyle);
+            if (GUI.Button(new Rect(pad + 60, 343, 180, 24),
+                $"{currentChainName}  ({currentEntryCount} entries)", closeButtonStyle))
+            {
+                if (chainNames.Count > 0)
+                    questChainPickerIndex = (questChainPickerIndex + 1) % chainNames.Count;
+            }
+
+            // In-chain progress readout while running.
+            string chainProgress = (questRunner.ChainEntries != null)
+                ? $"  ▶ {questRunner.ChainName} {questRunner.ChainIndex + 1}/{questRunner.ChainEntries.Count}"
+                : "";
+            GUI.Label(new Rect(pad + 250, 343, 200, 24), chainProgress, logTextStyle);
+
+            bool isRunningC = questRunner.IsRunning;
+            GUI.enabled = !isRunningC && chainNames.Count > 0;
+            if (GUI.Button(new Rect(pad + 460, 343, 120, 24), "Run Chain", closeButtonStyle))
+            {
+                questRunnerLog.Clear();
+                questRunner.OnLog = line =>
+                {
+                    lock (questRunnerLog)
+                    {
+                        questRunnerLog.Add($"{System.DateTime.Now:HH:mm:ss}  {line}");
+                        if (questRunnerLog.Count > 200) questRunnerLog.RemoveAt(0);
+                    }
+                };
+                questRunner.StartChain(currentChainName, QuestChains.Get(currentChainName));
+            }
+            GUI.enabled = true;
+
+            if (GUI.Button(new Rect(pad, 375, innerW, 22), "Close Runner", closeButtonStyle))
+            {
+                showQuestRunnerWindow = false;
+            }
+
+            // Picker overlay — covers the lower half of the window when open.
+            // Drawn last so it sits on top of the objective table + event log.
+            if (showQuestPicker)
+            {
+                // Covers the lower content (status, objectives, log) when open.
+                // Positioned just below the two input rows.
+                float pickerY = 95;
+                float pickerH = 235;
+                GUI.Box(new Rect(pad - 2, pickerY - 2, innerW + 4, pickerH + 4), "");
+                GUI.Label(new Rect(pad, pickerY, 70, 22), "Filter:", labelStyle);
+                questPickerFilter = GUI.TextField(new Rect(pad + 60, pickerY, 260, 22), questPickerFilter, textFieldStyle);
+                GUI.Label(new Rect(pad + 330, pickerY, 200, 22),
+                    $"({Directory.Quests.Count} known)", labelStyle);
+
+                // Filtered list — only enumerate Directory entries that match
+                // (case-insensitive substring on id/name/storyline). Sorted by id.
+                string filt = questPickerFilter?.ToLowerInvariant() ?? "";
+                var matches = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<int, Directory.QuestEntry>>();
+                foreach (var kv in Directory.Quests)
+                {
+                    if (filt.Length == 0
+                        || kv.Key.ToString().Contains(filt)
+                        || (kv.Value.name?.ToLowerInvariant().Contains(filt) ?? false)
+                        || (kv.Value.storyline?.ToLowerInvariant().Contains(filt) ?? false))
+                    {
+                        matches.Add(kv);
+                    }
+                }
+                matches.Sort((a, b) => a.Key.CompareTo(b.Key));
+
+                float rowH = 20f;
+                float contentH = System.Math.Max(pickerH - 50, matches.Count * rowH + 4);
+                questPickerScroll = GUI.BeginScrollView(
+                    new Rect(pad, pickerY + 28, innerW, pickerH - 32),
+                    questPickerScroll,
+                    new Rect(0, 0, innerW - 20, contentH));
+                for (int i = 0; i < matches.Count; i++)
+                {
+                    var kv = matches[i];
+                    string row = $"  {kv.Key,5}  {kv.Value.name}"
+                               + (string.IsNullOrEmpty(kv.Value.storyline) ? "" : $"   <i>({kv.Value.storyline})</i>");
+                    if (GUI.Button(new Rect(0, i * rowH, innerW - 25, rowH), row, rowButtonStyle))
+                    {
+                        questRunnerIdInput = kv.Key.ToString();
+                        showQuestPicker = false;
+                    }
+                }
+                GUI.EndScrollView();
+            }
+
+            GUI.DragWindow(new Rect(0, 0, winWidth, 30));
         }
 
         public static bool IsMouseOverUI()
@@ -1133,7 +1469,12 @@ namespace Infinity_TestMod
                 return true;
             }
 
-            if (showWindow && showReceiverWindow && receiverWindowRect.Contains(imguiMousePos))
+            if (showWindow && showSpoofWindow && spoofWindowRect.Contains(imguiMousePos))
+            {
+                return true;
+            }
+
+            if (showWindow && showQuestRunnerWindow && questRunnerWindowRect.Contains(imguiMousePos))
             {
                 return true;
             }

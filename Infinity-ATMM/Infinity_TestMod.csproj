@@ -6,56 +6,93 @@
     <LangVersion>latest</LangVersion>
     <AppendTargetFrameworkToOutputPath>false</AppendTargetFrameworkToOutputPath>
     <CopyLocalLockFileAssemblies>false</CopyLocalLockFileAssemblies>
+    <!--
+      Silence MSB3277 (assembly version conflicts). MelonLoader 0.7.3 was
+      built against .NET 6's System.* assemblies; we target netstandard2.1
+      whose reference assemblies are older. The mismatch is harmless because
+      Mono inside Unity resolves these against its own runtime copies — but
+      MSBuild emits ~20 warnings per build that drown out real issues.
+    -->
+    <MSBuildWarningsAsMessages>MSB3277</MSBuildWarningsAsMessages>
   </PropertyGroup>
 
+  <!--
+    Reference DLL locations.
+
+    AqwiGameDir   = game install root, holds Assembly-CSharp.dll,
+                    Newtonsoft.Json.dll, and the UnityEngine.* modules.
+                    Override with AQWI_GAME_DIR env var.
+
+    AqwiMlRefDir  = where MelonLoader.dll and 0Harmony.dll live. Prefers
+                    the project-local _refs cache (so the project compiles
+                    even on a machine without MelonLoader installed in the
+                    game), falls back to the game's MelonLoader/net6.
+
+    AqwiModsDir   = where to drop the built .dll on PostBuild. Override
+                    with AQWI_MODS_DIR. The Target is skipped silently if
+                    the dir doesn't exist (CI/source-only collaborators).
+  -->
   <PropertyGroup>
-    <!-- Dynamic installation path detection -->
-    <AQWPath Condition="'$(AQWPath)' == ''">$(AQW_PATH)</AQWPath>
-    
-    <!-- Registry path checks (with validation that target files exist) -->
-    <AQWPathReg1>$([MSBuild]::GetRegistryValueFromView('HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Steam App 2094530', 'InstallLocation', null, RegistryView.Registry64, RegistryView.Registry32))</AQWPathReg1>
-    <AQWPath Condition="'$(AQWPath)' == '' and '$(AQWPathReg1)' != '' and Exists('$(AQWPathReg1)\MelonLoader\net6\MelonLoader.dll')">$(AQWPathReg1)</AQWPath>
+    <AqwiGameDir Condition="'$(AQWI_GAME_DIR)' != ''">$(AQWI_GAME_DIR)</AqwiGameDir>
+    <AqwiGameDir Condition="'$(AqwiGameDir)' == ''">C:\Program Files (x86)\Steam\steamapps\common\AdventureQuest Worlds Unity Playtest</AqwiGameDir>
 
-    <AQWPathReg2>$([MSBuild]::GetRegistryValueFromView('HKEY_LOCAL_MACHINE\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\Steam App 1979810', 'InstallLocation', null, RegistryView.Registry64, RegistryView.Registry32))</AQWPathReg2>
-    <AQWPath Condition="'$(AQWPath)' == '' and '$(AQWPathReg2)' != '' and Exists('$(AQWPathReg2)\MelonLoader\net6\MelonLoader.dll')">$(AQWPathReg2)</AQWPath>
+    <AqwiMlRefDir Condition="Exists('$(MSBuildProjectDirectory)\..\_refs\MelonLoader.dll')">$(MSBuildProjectDirectory)\..\_refs</AqwiMlRefDir>
+    <AqwiMlRefDir Condition="'$(AqwiMlRefDir)' == ''">$(AqwiGameDir)\MelonLoader\net6</AqwiMlRefDir>
 
-    <!-- Parse Steam library configuration file (libraryfolders.vdf) -->
-    <SteamPathReg>$([MSBuild]::GetRegistryValueFromView('HKEY_CURRENT_USER\Software\Valve\Steam', 'SteamPath', null, RegistryView.Registry64, RegistryView.Registry32))</SteamPathReg>
-    <VdfPath>$(SteamPathReg)\steamapps\libraryfolders.vdf</VdfPath>
-    <VdfContent Condition="Exists('$(VdfPath)')">$([System.IO.File]::ReadAllText('$(VdfPath)'))</VdfContent>
-    <VdfContent Condition="'$(VdfContent)' != ''">$(VdfContent.Replace('\\', '/'))</VdfContent>
-    
-    <PathsOnly Condition="'$(VdfContent)' != ''">$([System.Text.RegularExpressions.Regex]::Replace('$(VdfContent)', '(?m)^(?!\s*"path"\s+).*$\r?\n?', ''))</PathsOnly>
-    <LibraryPaths Condition="'$(PathsOnly)' != ''">$([System.Text.RegularExpressions.Regex]::Replace('$(PathsOnly)', '\s*"path"\s+"([^"]+)"\r?\n?', '$1;'))</LibraryPaths>
-
-    <!-- Split library paths (up to 4 Steam libraries) -->
-    <Lib0 Condition="'$(LibraryPaths)' != ''">$([System.String]::Copy('$(LibraryPaths)').Split('%3B')[0])</Lib0>
-    <Lib1 Condition="'$(LibraryPaths)' != '' and '$(LibraryPaths.Split(%27%3B%27).Length)' &gt; 1">$([System.String]::Copy('$(LibraryPaths)').Split('%3B')[1])</Lib1>
-    <Lib2 Condition="'$(LibraryPaths)' != '' and '$(LibraryPaths.Split(%27%3B%27).Length)' &gt; 2">$([System.String]::Copy('$(LibraryPaths)').Split('%3B')[2])</Lib2>
-    <Lib3 Condition="'$(LibraryPaths)' != '' and '$(LibraryPaths.Split(%27%3B%27).Length)' &gt; 3">$([System.String]::Copy('$(LibraryPaths)').Split('%3B')[3])</Lib3>
-
-    <!-- Check each Steam library folder for the game -->
-    <AQWPath Condition="'$(AQWPath)' == '' and '$(Lib0)' != '' and Exists('$(Lib0)\steamapps\common\AdventureQuest Worlds Unity Playtest\MelonLoader\net6\MelonLoader.dll')">$(Lib0)\steamapps\common\AdventureQuest Worlds Unity Playtest</AQWPath>
-    <AQWPath Condition="'$(AQWPath)' == '' and '$(Lib1)' != '' and Exists('$(Lib1)\steamapps\common\AdventureQuest Worlds Unity Playtest\MelonLoader\net6\MelonLoader.dll')">$(Lib1)\steamapps\common\AdventureQuest Worlds Unity Playtest</AQWPath>
-    <AQWPath Condition="'$(AQWPath)' == '' and '$(Lib2)' != '' and Exists('$(Lib2)\steamapps\common\AdventureQuest Worlds Unity Playtest\MelonLoader\net6\MelonLoader.dll')">$(Lib2)\steamapps\common\AdventureQuest Worlds Unity Playtest</AQWPath>
-    <AQWPath Condition="'$(AQWPath)' == '' and '$(Lib3)' != '' and Exists('$(Lib3)\steamapps\common\AdventureQuest Worlds Unity Playtest\MelonLoader\net6\MelonLoader.dll')">$(Lib3)\steamapps\common\AdventureQuest Worlds Unity Playtest</AQWPath>
-
-    <!-- Default Fallback -->
-    <AQWPath Condition="'$(AQWPath)' == ''">C:\Program Files (x86)\Steam\steamapps\common\AdventureQuest Worlds Unity Playtest</AQWPath>
-    <AQWPath>$([System.IO.Path]::GetFullPath('$(AQWPath)'))</AQWPath>
+    <AqwiModsDir Condition="'$(AQWI_MODS_DIR)' != ''">$(AQWI_MODS_DIR)</AqwiModsDir>
+    <AqwiModsDir Condition="'$(AqwiModsDir)' == ''">$(AqwiGameDir)\Mods</AqwiModsDir>
   </PropertyGroup>
-
-  <Target Name="PostBuild" AfterTargets="Build">
-    <Copy SourceFiles="$(OutputPath)$(AssemblyName).dll" DestinationFolder="$(AQWPath)\Mods" />
+  <Target Name="PostBuild" AfterTargets="Build" Condition="Exists('$(AqwiModsDir)')">
+    <Copy SourceFiles="$(OutputPath)$(AssemblyName).dll" DestinationFolder="$(AqwiModsDir)" />
+    <Message Importance="high" Text="Copied $(AssemblyName).dll to $(AqwiModsDir)" />
   </Target>
 
+  <!--
+    Ship the bootstrap directory (quest + shop intel mined from our prior
+    proxy capture) as embedded resources so the mod has a useful catalog
+    from first launch. Live mining merges new entries at runtime.
+  -->
   <ItemGroup>
-    <Reference Include="0Harmony;MelonLoader">
-      <HintPath>$(AQWPath)\MelonLoader\net6\%(Identity).dll</HintPath>
+    <EmbeddedResource Include="Data\quests.json" />
+    <EmbeddedResource Include="Data\shops.json" />
+    <EmbeddedResource Include="Data\chains.json" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="0Harmony">
+      <HintPath>$(AqwiMlRefDir)\0Harmony.dll</HintPath>
       <Private>False</Private>
     </Reference>
-    <Reference Include="Assembly-CSharp;Newtonsoft.Json;UnityEngine.CoreModule;UnityEngine.ImageConversionModule;UnityEngine.IMGUIModule;UnityEngine.InputLegacyModule;UnityEngine.TextRenderingModule">
-      <HintPath>$(AQWPath)\AdventureQuest Worlds Infinity_Data\Managed\%(Identity).dll</HintPath>
+    <Reference Include="Assembly-CSharp">
+      <HintPath>$(AqwiGameDir)\AdventureQuest Worlds Infinity_Data\Managed\Assembly-CSharp.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="MelonLoader">
+      <HintPath>$(AqwiMlRefDir)\MelonLoader.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>$(AqwiGameDir)\AdventureQuest Worlds Infinity_Data\Managed\Newtonsoft.Json.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>$(AqwiGameDir)\AdventureQuest Worlds Infinity_Data\Managed\UnityEngine.CoreModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.ImageConversionModule">
+      <HintPath>$(AqwiGameDir)\AdventureQuest Worlds Infinity_Data\Managed\UnityEngine.ImageConversionModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.IMGUIModule">
+      <HintPath>$(AqwiGameDir)\AdventureQuest Worlds Infinity_Data\Managed\UnityEngine.IMGUIModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.InputLegacyModule">
+      <HintPath>$(AqwiGameDir)\AdventureQuest Worlds Infinity_Data\Managed\UnityEngine.InputLegacyModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.TextRenderingModule">
+      <HintPath>$(AqwiGameDir)\AdventureQuest Worlds Infinity_Data\Managed\UnityEngine.TextRenderingModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
   </ItemGroup>

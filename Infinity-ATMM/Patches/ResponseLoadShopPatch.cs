@@ -8,11 +8,21 @@ namespace Infinity_TestMod.Patches
     {
         public static void Prefix(ResponseLoadShop __instance)
         {
-            if (TestMod.forceMergeShop && __instance.shop != null)
+            // Clear the flag unconditionally on the FIRST shop response after
+            // it was set, even if __instance.shop is null. Previously the flag
+            // could leak to the next shop load (or, if the targeted request
+            // failed entirely, persist indefinitely until the next shop the
+            // user opened got force-merged).
+            if (!TestMod.forceMergeShop) return;
+            TestMod.forceMergeShop = false;
+            if (__instance.shop != null)
             {
                 __instance.shop.mergeShop = true;
-                TestMod.forceMergeShop = false;
                 MelonLogger.Msg("Intercepted ResponseLoadShop: Forced mergeShop = true");
+            }
+            else
+            {
+                MelonLogger.Msg("Intercepted ResponseLoadShop with null shop; flag cleared without effect.");
             }
         }
     }
