@@ -34,9 +34,9 @@ namespace Infinity_TestMod
         // payload contains literal commas (e.g. `message`: "hi, friend").
         private static bool senderSingleString = false;
 
-        // Spoof: synthesize server→client packets locally, bypassing the wire.
-        public static bool showSpoofWindow = false;
-        public static Rect spoofWindowRect = new(660, 100, 500, 220);
+        // Packet Receiver: inject server→client packets locally.
+        public static bool showReceiverWindow = false;
+        public static Rect receiverWindowRect = new(660, 1040, 500, 290);
 
         // QuestRunner: end-to-end automation. Single instance, ticked from
         // OnUpdate so all game-side calls (target setting, request sends)
@@ -56,12 +56,9 @@ namespace Infinity_TestMod
         private static Vector2 questPickerScroll = Vector2.zero;
         // Chain picker: index into QuestChains.Names + button to run.
         private static int questChainPickerIndex = 0;
-        private static int spoofPreset = 0; // 0=rNotify  1=chatm SERVER  2=chatm zone  3=custom JSON
-        private static readonly string[] spoofPresetLabels = {
-            "rNotify (banner)", "chatm SERVER", "chatm zone (as me)", "Custom JSON"
-        };
-        private static string spoofText = "Hello from the void";
-        private static string spoofCustomJson = "{\"Cmd\":\"rNotify\",\"msg\":\"hi\"}";
+        private static string receiverJsonInput = "{\n  \"Cmd\": \"\",\n  \"Params\": {}\n}";
+        private static Vector2 receiverScrollPosition = Vector2.zero;
+        private static System.Reflection.MethodInfo _wrapAndQueueResponseMethod = null;
         public static System.Collections.Generic.List<string> interceptedPacketsLog = new();
         private static Vector2 interceptorScrollPosition = Vector2.zero;
 
@@ -413,15 +410,15 @@ namespace Infinity_TestMod
                 }
             }
 
-            if (showWindow && showSpoofWindow)
+            if (showWindow && showReceiverWindow)
             {
                 if (windowStyle != null)
                 {
-                    spoofWindowRect = GUI.Window(9994, spoofWindowRect, DrawSpoofWindow, "Packet Spoof (s2c local)", windowStyle);
+                    receiverWindowRect = GUI.Window(9994, receiverWindowRect, DrawReceiverWindow, "Packet Receiver", windowStyle);
                 }
                 else
                 {
-                    spoofWindowRect = GUI.Window(9994, spoofWindowRect, DrawSpoofWindow, "Packet Spoof (s2c local)");
+                    receiverWindowRect = GUI.Window(9994, receiverWindowRect, DrawReceiverWindow, "Packet Receiver");
                 }
             }
 
@@ -727,10 +724,10 @@ namespace Infinity_TestMod
                 showSenderWindow = !showSenderWindow;
             }
 
-            string spoofBtnText = showSpoofWindow ? "Hide Spoof" : "Packet Spoof";
-            if (GUI.Button(new Rect(155, 450, 125, 35), spoofBtnText, closeButtonStyle))
+            string receiverBtnText = showReceiverWindow ? "Hide Receiver" : "Receiver";
+            if (GUI.Button(new Rect(155, 450, 125, 35), receiverBtnText, closeButtonStyle))
             {
-                showSpoofWindow = !showSpoofWindow;
+                showReceiverWindow = !showReceiverWindow;
             }
 
             string runnerBtnText = showQuestRunnerWindow ? "Hide Quest Runner" : "Quest Runner";
@@ -1104,77 +1101,124 @@ namespace Infinity_TestMod
             GUI.DragWindow(new Rect(0, 0, senderWindowRect.width, 30));
         }
 
-        private void DrawSpoofWindow(int windowID)
+        private void DrawReceiverWindow(int windowID)
         {
-            float winWidth = spoofWindowRect.width;
+            float winWidth = receiverWindowRect.width;
             float pad = 20f;
             float innerW = winWidth - pad * 2;
 
-            GUI.Label(new Rect(pad, 35, innerW, 20),
-                "Inject server→client packet locally (server never sees it)", labelStyle);
+            GUI.Label(new Rect(pad, 35, innerW, 20), "Server Packet Injector (Fake Server -> Client)", labelStyle);
 
-            // Preset row
-            float btnW = (innerW - 15) / 4f;
-            for (int i = 0; i < spoofPresetLabels.Length; i++)
+            GUI.Label(new Rect(pad, 55, innerW, 20), "Enter raw server JSON payload:", labelStyle);
+
+            // Preset loaders
+            float presetBtnW = (innerW - 10) / 3f;
+            if (GUI.Button(new Rect(pad, 75, presetBtnW, 25), "Preset: rNotify", closeButtonStyle))
             {
-                bool selected = (spoofPreset == i);
-                string label = selected ? $"▶ {spoofPresetLabels[i]}" : spoofPresetLabels[i];
-                if (GUI.Button(new Rect(pad + i * (btnW + 5), 60, btnW, 30), label, closeButtonStyle))
+                GUI.FocusControl(null);
+                GUIUtility.keyboardControl = 0;
+                receiverJsonInput = "{\"Cmd\":\"rNotify\",\"msg\":\"Hello from the void\"}";
+            }
+
+            if (GUI.Button(new Rect(pad + presetBtnW + 5, 75, presetBtnW, 25), "Preset: Server Chat", closeButtonStyle))
+            {
+                GUI.FocusControl(null);
+                GUIUtility.keyboardControl = 0;
+                receiverJsonInput = "{\"Cmd\":\"chatm\",\"msg\":\"Hello from the server!\",\"Name\":\"SERVER\",\"channel\":\"server\"}";
+            }
+
+            if (GUI.Button(new Rect(pad + (presetBtnW + 5) * 2, 75, presetBtnW, 25), "Preset: Zone Chat", closeButtonStyle))
+            {
+                GUI.FocusControl(null);
+                GUIUtility.keyboardControl = 0;
+                string name = "Loader";
+                try { if (Entity.mainPlayer != null) name = Entity.mainPlayer.Name; } catch { }
+                receiverJsonInput = "{\"Cmd\":\"chatm\",\"msg\":\"Hello, zone!\",\"Name\":\"" + name + "\",\"channel\":\"zone\"}";
+            }
+
+            float contentWidth = innerW - 4;
+            float contentHeight = 150f;
+
+            receiverScrollPosition = GUI.BeginScrollView(
+                new Rect(pad, 110, innerW, 120),
+                receiverScrollPosition,
+                new Rect(0, 0, contentWidth, contentHeight)
+            );
+
+            receiverJsonInput = GUI.TextArea(
+                new Rect(0, 0, contentWidth, contentHeight),
+                receiverJsonInput,
+                previewTextStyle ?? GUI.skin.textArea
+            );
+
+            GUI.EndScrollView();
+
+            float btnW = (innerW - 10) / 3f;
+
+            if (GUI.Button(new Rect(pad, 240, btnW, 35), "Inject", closeButtonStyle))
+            {
+                string json = receiverJsonInput.Trim();
+                if (string.IsNullOrEmpty(json))
                 {
-                    spoofPreset = i;
+                    LoggerInstance.Error("[Packet Receiver] Cannot inject empty JSON.");
+                }
+                else
+                {
+                    FakeServerPacket(json);
                 }
             }
 
-            // Input depending on mode
-            if (spoofPreset == 3)
+            if (GUI.Button(new Rect(pad + btnW + 5, 240, btnW, 35), "Clear", closeButtonStyle))
             {
-                GUI.Label(new Rect(pad, 100, innerW, 20), "Custom JSON (must include Cmd):", labelStyle);
-                spoofCustomJson = GUI.TextArea(new Rect(pad, 120, innerW, 50), spoofCustomJson, textFieldStyle);
-            }
-            else
-            {
-                GUI.Label(new Rect(pad, 100, 60, 25), "Text:", labelStyle);
-                spoofText = GUI.TextField(new Rect(pad + 60, 100, innerW - 60, 25), spoofText, textFieldStyle);
+                GUI.FocusControl(null);
+                GUIUtility.keyboardControl = 0;
+                receiverJsonInput = "{\n  \"Cmd\": \"\",\n  \"Params\": {}\n}";
             }
 
-            if (GUI.Button(new Rect(pad, 175, innerW / 2 - 5, 30), "Spoof", closeButtonStyle))
+            if (GUI.Button(new Rect(pad + (btnW + 5) * 2, 240, btnW, 35), "Close", closeButtonStyle))
             {
-                (bool ok, string info) result = (false, "no-op");
-                try
-                {
-                    switch (spoofPreset)
-                    {
-                        case 0:
-                            result = Spoof.Notify(spoofText);
-                            break;
-                        case 1:
-                            result = Spoof.ChatM(spoofText, "SERVER", "server");
-                            break;
-                        case 2:
-                            {
-                                string name = "Loader";
-                                try { if (Entity.mainPlayer != null) name = Entity.mainPlayer.Name; } catch { }
-                                result = Spoof.ChatM(spoofText, name, "zone");
-                            }
-                            break;
-                        case 3:
-                            result = Spoof.Send(spoofCustomJson);
-                            break;
-                    }
-                }
-                catch (System.Exception ex)
-                {
-                    result = (false, ex.Message);
-                }
-                LoggerInstance.Msg($"[Spoof] ok={result.ok} info={result.info}");
-            }
-
-            if (GUI.Button(new Rect(pad + innerW / 2 + 5, 175, innerW / 2 - 5, 30), "Close Spoof", closeButtonStyle))
-            {
-                showSpoofWindow = false;
+                showReceiverWindow = false;
             }
 
             GUI.DragWindow(new Rect(0, 0, winWidth, 30));
+        }
+
+        public static (bool ok, string info) FakeServerPacket(string json)
+        {
+            if (string.IsNullOrEmpty(json)) return (false, "empty JSON");
+            try
+            {
+                if (AEC.Instance != null)
+                {
+                    if (_wrapAndQueueResponseMethod == null)
+                    {
+                        _wrapAndQueueResponseMethod = typeof(AEC).GetMethod("WrapAndQueueResponse", System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                    }
+                    if (_wrapAndQueueResponseMethod != null)
+                    {
+                        byte[] data = System.Text.Encoding.UTF8.GetBytes(json);
+                        _wrapAndQueueResponseMethod.Invoke(AEC.Instance, new object[] { data });
+                        MelonLogger.Msg("[Packet Receiver] Successfully injected fake server packet.");
+                        Infinity_TestMod.Util.PacketLog.Write("s2c", json, synthetic: true);
+                        return (true, "AEC Queue");
+                    }
+                    else
+                    {
+                        MelonLogger.Error("[Packet Receiver] Could not find WrapAndQueueResponse method via reflection.");
+                        return (false, "WrapAndQueueResponse not found");
+                    }
+                }
+                else
+                {
+                    MelonLogger.Error("[Packet Receiver] AEC.Instance is null, cannot inject packet.");
+                    return (false, "AEC.Instance is null");
+                }
+            }
+            catch (System.Exception ex)
+            {
+                MelonLogger.Error($"[Packet Receiver] Error injecting fake packet: {ex.Message}");
+                return (false, ex.Message);
+            }
         }
 
         /// <summary>
@@ -1469,7 +1513,7 @@ namespace Infinity_TestMod
                 return true;
             }
 
-            if (showWindow && showSpoofWindow && spoofWindowRect.Contains(imguiMousePos))
+            if (showWindow && showReceiverWindow && receiverWindowRect.Contains(imguiMousePos))
             {
                 return true;
             }
