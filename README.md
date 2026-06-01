@@ -25,5 +25,5 @@ Feel free to open pull requests and contribute.
 > I am not responsible for the actions you take with this tool. It is unclear whether Infinity will end up with an anticheat, or whether standard actions such as these are logged server side. While this works today, it could stop working tomorrow. Execute caution and be responsible for your own actions.
 
 # Credits & Team
-Thanks to [@SharpTheNightmare](https://github.com/SharpTheNightmare)
-Thanks to [@Drathaxie](https://github.com/drathaxie)
+- [@SharpTheNightmare](https://github.com/SharpTheNightmare)
+- [@Drathaxie](https://github.com/drathaxie)
