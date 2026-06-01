@@ -52,6 +52,13 @@ namespace Infinity_TestMod
         public static string backSpoofBundle = "";
         private static string backSpoofInput = "";
 
+        // Gender flip — mutates Entity.mainPlayer.Gender (enum field) while
+        // active so every gender consumer (avatar rig prefab, pronouns,
+        // hair option matchers) sees the flipped value uniformly. Original
+        // is stashed in `genderSpoofOriginal` and restored on toggle off.
+        public static bool genderSpoofActive = false;
+        private static Player.genders genderSpoofOriginal = Player.genders.Male;
+
         // Shared catalog dropdown: only one slot's picker is expanded at a
         // time (0=none, 1=Helm, 2=Armor, 3=Back). Filter+scroll persist
         // across openings so a search isn't lost when switching slots.
@@ -1372,7 +1379,27 @@ namespace Infinity_TestMod
             }
             curY += 40f;
 
-            // 2-4. Gear spoof slots. Each row: label, input, three buttons
+            // 2. Gender flip — single toggle. Real gender stays for game logic
+            // (pronouns, server-side checks); only the avatar rig flips.
+            string realGender = "?";
+            try { if (Entity.mainPlayer != null) realGender = Entity.mainPlayer.GetGenderString(); } catch { }
+            string genderLabel = genderSpoofActive
+                ? $"Flip Gender: ON (showing {(realGender == "M" ? "F" : (realGender == "F" ? "M" : "?"))})"
+                : $"Flip Gender: OFF (real: {realGender})";
+            if (playerExists)
+            {
+                if (GUI.Button(new Rect(pad, curY, innerW, 30), genderLabel, closeButtonStyle))
+                    ToggleGenderSpoof();
+            }
+            else
+            {
+                GUI.enabled = false;
+                GUI.Button(new Rect(pad, curY, innerW, 30), genderLabel, closeButtonStyle);
+                GUI.enabled = true;
+            }
+            curY += 40f;
+
+            // 3-5. Gear spoof slots. Each row: label, input, three buttons
             // (Apply / Clear / Browse). Browse is a dropdown toggle — only
             // one slot's catalog is visible at a time. The picker panel is
             // drawn after all three slot rows so it can size against the
@@ -1508,6 +1535,30 @@ namespace Infinity_TestMod
             }
             curY += 40f;
             return curY;
+        }
+
+        private static void ToggleGenderSpoof()
+        {
+            if (Entity.mainPlayer == null) return;
+            if (!genderSpoofActive)
+            {
+                // Activate: stash original, flip the enum field. Every
+                // consumer (GetGenderString, pronouns, EquipOptions, etc.)
+                // reads from this field, so they all see the flipped value.
+                genderSpoofOriginal = Entity.mainPlayer.Gender;
+                Entity.mainPlayer.Gender = (genderSpoofOriginal == Player.genders.Male)
+                    ? Player.genders.Female
+                    : Player.genders.Male;
+                genderSpoofActive = true;
+            }
+            else
+            {
+                // Deactivate: restore the stashed value.
+                Entity.mainPlayer.Gender = genderSpoofOriginal;
+                genderSpoofActive = false;
+            }
+            try { Entity.mainPlayer.createAvatar(); } catch { }
+            MelonLogger.Msg($"[GenderSpoof] {(genderSpoofActive ? $"ON (now {Entity.mainPlayer.GetGenderString()})" : "OFF")}");
         }
 
         private static void ApplyArmorSpoof(string desiredBundle)
