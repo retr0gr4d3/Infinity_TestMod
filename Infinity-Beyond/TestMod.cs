@@ -3,6 +3,9 @@ using System.Reflection;
 using UnityEngine;
 using Infinity_TestMod.Patches;
 using Infinity_TestMod.Util;
+using System.Collections.Generic;
+using Newtonsoft.Json;
+using MelonLoader.Utils;
 
 
 namespace Infinity_TestMod
@@ -35,6 +38,9 @@ namespace Infinity_TestMod
         // Sized to fit Name Spoof + Armor Spoof rows + armor catalog picker.
         public static bool showFunWindow = false;
         public static Rect funWindowRect = new(330, 410, 360, 560);
+
+        public static bool showRetroTestsWindow = false;
+        public static Rect retroTestsWindowRect = new(330, 350, 320, 640);
 
         // Gear Spoof — one entry per visual slot (Helm, Armor, Back/Cape).
         // Each holds the active spoof bundle Filename. Version metadata is
@@ -145,6 +151,32 @@ namespace Infinity_TestMod
         private static int currentSkillIndex = 0;
         private static float nextSkillTime = 0f;
 
+        public static bool retroAutoskillsActive = false;
+        private static System.Collections.Generic.Dictionary<int, float> retroSkillDelays = new()
+        {
+            { 0, 1f }, { 1, 1f }, { 2, 1f }, { 3, 1f }, { 4, 1f }
+        };
+        private static string[] retroDelayInputs = new string[] { "1000", "1000", "1000", "1000", "1000" };
+        private static int retroCurrentSkillIndex = 0;
+        private static float retroNextSkillTime = 0f;
+
+        public class SkillsetEntry
+        {
+            public string Name { get; set; }
+            public string Combo { get; set; }
+            public string Delays { get; set; }
+        }
+
+        private static System.Collections.Generic.List<SkillsetEntry> savedSkillsets = new();
+        private static int selectedSkillsetIndex = -1;
+        private static string skillsetEditName = "My skillset";
+        private static string skillsetEditCombo = "2,3,4,2,3,2,3,2,1,3,4,5";
+        private static string skillsetImportExportText = "";
+        private static string skillsetFileInput = "export_skillset.txt";
+        private static string _skillsetFilePath;
+        private static Vector2 retroSkillsetsScroll = Vector2.zero;
+        private static System.Collections.Generic.List<int> activeComboList = new();
+
         private static Texture2D buttonTexture;
         private static Texture2D buttonHoverTexture;
         private static Texture2D windowTexture;
@@ -166,6 +198,12 @@ namespace Infinity_TestMod
             Directory.Init();
             ItemCatalog.Init();
             QuestChains.Init();
+
+            string userDir = System.IO.Path.Combine(MelonEnvironment.UserDataDirectory, "Beyond");
+            System.IO.Directory.CreateDirectory(userDir);
+            _skillsetFilePath = System.IO.Path.Combine(userDir, "skillsets.json");
+            LoadSkillsets();
+
             var harmony = new HarmonyLib.Harmony(nameof(TestMod));
             harmony.PatchAll();
             LoggerInstance.Msg("Harmony patches applied!");
@@ -177,6 +215,7 @@ namespace Infinity_TestMod
             Directory.Save();
             ItemCatalog.Save();
             PacketLog.Close();
+            SaveSkillsets();
         }
 
         private static bool IsSkillSlotButtonDisabled(SkillSlotButton button)
@@ -272,6 +311,97 @@ namespace Infinity_TestMod
                     else
                     {
                         nextSkillTime = Time.time + 1f;
+                    }
+                }
+            }
+
+            if (retroAutoskillsActive)
+            {
+                if (Time.time >= retroNextSkillTime)
+                {
+                    bool playerExists = false;
+                    try
+                    {
+                        playerExists = (Entity.mainPlayer != null);
+                    }
+                    catch { }
+
+                    if (playerExists)
+                    {
+                        var combo = activeComboList.Count > 0 ? activeComboList : new System.Collections.Generic.List<int>() { 0, 1, 2, 3, 4 };
+                        if (combo.Count > 0)
+                        {
+                            int targetSkillSlot = -1;
+                            int checkCount = 0;
+                            bool found = false;
+
+                            while (checkCount < combo.Count)
+                            {
+                                int tempSlot = combo[retroCurrentSkillIndex % combo.Count];
+                                if (tempSlot >= 0 && tempSlot < 5)
+                                {
+                                    targetSkillSlot = tempSlot;
+                                    found = true;
+                                    break;
+                                }
+                                retroCurrentSkillIndex = (retroCurrentSkillIndex + 1) % combo.Count;
+                                checkCount++;
+                            }
+
+                            if (found && targetSkillSlot != -1)
+                            {
+                                bool casted = false;
+                                try
+                                {
+                                    if (UISkillSlots.Instance != null)
+                                    {
+                                        SkillSlotButton slotBtn = UISkillSlots.Instance.GetSlot(targetSkillSlot);
+                                        if (slotBtn != null && !IsSkillSlotButtonDisabled(slotBtn))
+                                        {
+                                            slotBtn.UseSkill(true);
+                                            slotBtn.UseSkill(false);
+                                            LoggerInstance.Msg($"Retro Autoskill casted slot: {targetSkillSlot}");
+                                            casted = true;
+                                        }
+                                    }
+                                }
+                                catch (System.Exception ex)
+                                {
+                                    LoggerInstance.Error($"Error casting retro autoskill: {ex}");
+                                }
+
+                                if (casted)
+                                {
+                                    float delay = 1f;
+                                    if (retroSkillDelays.ContainsKey(targetSkillSlot))
+                                    {
+                                        delay = retroSkillDelays[targetSkillSlot];
+                                    }
+                                    retroNextSkillTime = Time.time + delay;
+                                    retroCurrentSkillIndex = (retroCurrentSkillIndex + 1) % combo.Count;
+                                }
+                                else
+                                {
+                                    // Skill was on cooldown/disabled. Check again in 100ms.
+                                    retroNextSkillTime = Time.time + 0.1f;
+                                    // Advance index to not get stuck on this step
+                                    retroCurrentSkillIndex = (retroCurrentSkillIndex + 1) % combo.Count;
+                                }
+                            }
+                            else
+                            {
+                                // All skills disabled or invalid
+                                retroNextSkillTime = Time.time + 1f;
+                            }
+                        }
+                        else
+                        {
+                            retroNextSkillTime = Time.time + 1f;
+                        }
+                    }
+                    else
+                    {
+                        retroNextSkillTime = Time.time + 1f;
                     }
                 }
             }
@@ -536,6 +666,18 @@ namespace Infinity_TestMod
                     funWindowRect = GUI.Window(9989, funWindowRect, DrawFunWindow, "Fun");
                 }
             }
+
+            if (showWindow && showRetroTestsWindow)
+            {
+                if (windowStyle != null)
+                {
+                    retroTestsWindowRect = GUI.Window(9988, retroTestsWindowRect, DrawRetroTestsWindow, "Retro Tests", windowStyle);
+                }
+                else
+                {
+                    retroTestsWindowRect = GUI.Window(9988, retroTestsWindowRect, DrawRetroTestsWindow, "Retro Tests");
+                }
+            }
         }
 
         private void DrawWindow(int windowID)
@@ -748,6 +890,28 @@ namespace Infinity_TestMod
             {
                 showFunWindow = !showFunWindow;
             }
+            curY += 35f;
+
+            if (separatorTexture != null)
+            {
+                curY += 6f;
+                GUI.DrawTexture(new Rect(20, curY, 260, 2), separatorTexture);
+                curY += 2f + 6f;
+            }
+            else
+            {
+                curY += 10f;
+            }
+
+            // Section 7: Retro Tests
+            GUI.Label(new Rect(20, curY, 260, 20), "<b>Retro Tests</b>", labelStyle);
+            curY += 22f;
+
+            string retroTestsBtnText = showRetroTestsWindow ? "Hide Retro" : "Open";
+            if (GUI.Button(new Rect(20, curY, 260, 35), retroTestsBtnText, closeButtonStyle))
+            {
+                showRetroTestsWindow = !showRetroTestsWindow;
+            }
             curY += 35f + 10f;
 
             if (closeButtonStyle != null)
@@ -832,6 +996,424 @@ namespace Infinity_TestMod
             }
 
             GUI.DragWindow(new Rect(0, 0, configWindowRect.width, 30));
+        }
+
+        private void DrawRetroTestsWindow(int windowID)
+        {
+            float winWidth = retroTestsWindowRect.width;
+            float pad = 20f;
+            float innerW = winWidth - pad * 2;
+
+            bool playerExists = false;
+            try { playerExists = (Entity.mainPlayer != null); } catch { }
+
+            float curY = 35f;
+
+            // 1. Toggle Button for Retro Autoskills
+            string autoSkillsText = retroAutoskillsActive ? "Retro Autoskills: ON" : "Retro Autoskills: OFF";
+            if (playerExists)
+            {
+                if (GUI.Button(new Rect(pad, curY, innerW, 35), autoSkillsText, closeButtonStyle))
+                {
+                    retroAutoskillsActive = !retroAutoskillsActive;
+                    if (retroAutoskillsActive)
+                    {
+                        activeComboList = ParseCombo(skillsetEditCombo);
+                        retroCurrentSkillIndex = 0;
+                        retroNextSkillTime = Time.time;
+                        MelonLogger.Msg("Retro Autoskills activated!");
+                    }
+                    else
+                    {
+                        MelonLogger.Msg("Retro Autoskills deactivated!");
+                    }
+                }
+            }
+            else
+            {
+                GUI.enabled = false;
+                GUI.Button(new Rect(pad, 35, innerW, 35), "Retro Autoskills: OFF", closeButtonStyle);
+                GUI.enabled = true;
+                retroAutoskillsActive = false;
+            }
+            curY += 45f;
+
+            // 2. Combo Sequence Input
+            GUI.Label(new Rect(pad, curY, innerW, 20), "<b>Combo Sequence (e.g. 2,3,4,2,3,2,1):</b>", labelStyle);
+            curY += 20f;
+            string newCombo = GUI.TextField(new Rect(pad, curY, innerW, 30), skillsetEditCombo, textFieldStyle);
+            if (newCombo != skillsetEditCombo)
+            {
+                skillsetEditCombo = newCombo;
+                if (retroAutoskillsActive)
+                {
+                    activeComboList = ParseCombo(skillsetEditCombo);
+                }
+            }
+            curY += 40f;
+
+            // 3. Saved Skillsets Selector
+            GUI.Label(new Rect(pad, curY, innerW, 20), "<b>Saved Skillsets:</b>", labelStyle);
+            curY += 20f;
+
+            float scrollHeight = 90f;
+            GUI.Box(new Rect(pad, curY, innerW, scrollHeight), "", GUI.skin.box);
+            
+            float listHeight = Mathf.Max(scrollHeight - 10f, savedSkillsets.Count * 25f);
+            retroSkillsetsScroll = GUI.BeginScrollView(
+                new Rect(pad, curY, innerW, scrollHeight),
+                retroSkillsetsScroll,
+                new Rect(0, 0, innerW - 20, listHeight)
+            );
+
+            for (int i = 0; i < savedSkillsets.Count; i++)
+            {
+                float itemY = i * 25f;
+                string selectLabel = savedSkillsets[i].Name;
+                if (selectedSkillsetIndex == i)
+                {
+                    GUI.Box(new Rect(2, itemY, innerW - 24, 22), "");
+                    selectLabel = "▶ " + selectLabel;
+                }
+
+                if (GUI.Button(new Rect(2, itemY, innerW - 24, 22), selectLabel, rowButtonStyle))
+                {
+                    selectedSkillsetIndex = i;
+                    skillsetEditName = savedSkillsets[i].Name;
+                    skillsetEditCombo = savedSkillsets[i].Combo;
+                    
+                    // Parse delays
+                    string[] delParts = (savedSkillsets[i].Delays ?? "1000,1000,1000,1000,1000").Split(',');
+                    for (int j = 0; j < 5; j++)
+                    {
+                        if (j < delParts.Length)
+                        {
+                            retroDelayInputs[j] = delParts[j];
+                            if (float.TryParse(delParts[j], out float ms))
+                            {
+                                retroSkillDelays[j] = ms / 1000f;
+                            }
+                        }
+                    }
+
+                    if (retroAutoskillsActive)
+                    {
+                        activeComboList = ParseCombo(skillsetEditCombo);
+                    }
+                    MelonLogger.Msg($"Loaded skillset: {savedSkillsets[i].Name}");
+                }
+            }
+            GUI.EndScrollView();
+            curY += scrollHeight + 10f;
+
+            // Name input + Save + Delete row
+            GUI.Label(new Rect(pad, curY, 50, 30), "Name:", labelStyle);
+            skillsetEditName = GUI.TextField(new Rect(pad + 50, curY, innerW - 190, 30), skillsetEditName, textFieldStyle);
+
+            if (GUI.Button(new Rect(pad + innerW - 130, curY, 60, 30), "Save", closeButtonStyle))
+            {
+                if (!string.IsNullOrEmpty(skillsetEditName))
+                {
+                    string delStr = string.Join(",", retroDelayInputs);
+                    var existingIdx = savedSkillsets.FindIndex(s => s.Name.Equals(skillsetEditName, System.StringComparison.OrdinalIgnoreCase));
+                    if (existingIdx >= 0)
+                    {
+                        savedSkillsets[existingIdx].Combo = skillsetEditCombo;
+                        savedSkillsets[existingIdx].Delays = delStr;
+                        selectedSkillsetIndex = existingIdx;
+                    }
+                    else
+                    {
+                        savedSkillsets.Add(new SkillsetEntry
+                        {
+                            Name = skillsetEditName,
+                            Combo = skillsetEditCombo,
+                            Delays = delStr
+                        });
+                        selectedSkillsetIndex = savedSkillsets.Count - 1;
+                    }
+                    SaveSkillsets();
+                }
+            }
+
+            if (GUI.Button(new Rect(pad + innerW - 60, curY, 60, 30), "Delete", closeButtonStyle))
+            {
+                if (selectedSkillsetIndex >= 0 && selectedSkillsetIndex < savedSkillsets.Count)
+                {
+                    savedSkillsets.RemoveAt(selectedSkillsetIndex);
+                    selectedSkillsetIndex = -1;
+                    SaveSkillsets();
+                }
+            }
+            curY += 40f;
+
+            // 4. Import / Export
+            GUI.Label(new Rect(pad, curY, innerW, 20), "<b>Import / Export Tool:</b>", labelStyle);
+            curY += 20f;
+
+            skillsetImportExportText = GUI.TextField(new Rect(pad, curY, innerW - 140, 30), skillsetImportExportText, textFieldStyle);
+            
+            if (GUI.Button(new Rect(pad + innerW - 130, curY, 60, 30), "Import", closeButtonStyle))
+            {
+                string payload = skillsetImportExportText.Trim();
+                if (!string.IsNullOrEmpty(payload))
+                {
+                    // Format: Name|Combo|Delays
+                    string[] parts = payload.Split('|');
+                    if (parts.Length >= 2)
+                    {
+                        skillsetEditName = parts[0];
+                        skillsetEditCombo = parts[1];
+                        string delStr = "1000,1000,1000,1000,1000";
+                        if (parts.Length >= 3)
+                        {
+                            delStr = parts[2];
+                            string[] delParts = delStr.Split(',');
+                            for (int j = 0; j < 5; j++)
+                            {
+                                if (j < delParts.Length)
+                                {
+                                    retroDelayInputs[j] = delParts[j];
+                                    if (float.TryParse(delParts[j], out float ms))
+                                    {
+                                        retroSkillDelays[j] = ms / 1000f;
+                                    }
+                                }
+                            }
+                        }
+                        if (retroAutoskillsActive)
+                        {
+                            activeComboList = ParseCombo(skillsetEditCombo);
+                        }
+                        AddOrUpdateSkillset(skillsetEditName, skillsetEditCombo, delStr);
+                        MelonLogger.Msg($"Imported skillset: {skillsetEditName}");
+                    }
+                    else
+                    {
+                        MelonLogger.Error("Invalid import format. Expected 'Name|Combo|Delays' or 'Name|Combo'.");
+                    }
+                }
+            }
+
+            if (GUI.Button(new Rect(pad + innerW - 60, curY, 60, 30), "Export", closeButtonStyle))
+            {
+                string delStr = string.Join(",", retroDelayInputs);
+                skillsetImportExportText = $"{skillsetEditName}|{skillsetEditCombo}|{delStr}";
+                UnityEngine.GUIUtility.systemCopyBuffer = skillsetImportExportText;
+                MelonLogger.Msg("Exported skillset copied to clipboard!");
+            }
+            curY += 45f;
+
+            if (separatorTexture != null)
+            {
+                GUI.DrawTexture(new Rect(pad, curY, innerW, 2), separatorTexture);
+                curY += 15f;
+            }
+
+            // File I/O row
+            GUI.Label(new Rect(pad, curY, 70, 30), "Filename:", labelStyle);
+            skillsetFileInput = GUI.TextField(new Rect(pad + 70, curY, innerW - 210, 30), skillsetFileInput, textFieldStyle);
+
+            if (GUI.Button(new Rect(pad + innerW - 130, curY, 60, 30), "Load File", closeButtonStyle))
+            {
+                try
+                {
+                    string userDir = System.IO.Path.Combine(MelonEnvironment.UserDataDirectory, "Beyond");
+                    System.IO.Directory.CreateDirectory(userDir);
+                    string defaultFile = skillsetFileInput.Trim();
+                    string fullPath = ShowOpenFileDialog(userDir, defaultFile);
+                    if (!string.IsNullOrEmpty(fullPath))
+                    {
+                        skillsetFileInput = System.IO.Path.GetFileName(fullPath);
+                        if (System.IO.File.Exists(fullPath))
+                        {
+                            string payload = System.IO.File.ReadAllText(fullPath).Trim();
+                            if (!string.IsNullOrEmpty(payload))
+                            {
+                                string[] parts = payload.Split('|');
+                                if (parts.Length >= 2)
+                                {
+                                    skillsetEditName = parts[0];
+                                    skillsetEditCombo = parts[1];
+                                    string delStr = "1000,1000,1000,1000,1000";
+                                    if (parts.Length >= 3)
+                                    {
+                                        delStr = parts[2];
+                                        string[] delParts = delStr.Split(',');
+                                        for (int j = 0; j < 5; j++)
+                                        {
+                                            if (j < delParts.Length)
+                                            {
+                                                retroDelayInputs[j] = delParts[j];
+                                                if (float.TryParse(delParts[j], out float ms))
+                                                {
+                                                    retroSkillDelays[j] = ms / 1000f;
+                                                }
+                                            }
+                                        }
+                                    }
+                                    if (retroAutoskillsActive)
+                                    {
+                                        activeComboList = ParseCombo(skillsetEditCombo);
+                                    }
+                                    skillsetImportExportText = payload;
+                                    AddOrUpdateSkillset(skillsetEditName, skillsetEditCombo, delStr);
+                                    MelonLogger.Msg($"Imported skillset from file: {fullPath}");
+                                }
+                                else
+                                {
+                                    MelonLogger.Error("Invalid file content format. Expected Name|Combo|Delays");
+                                }
+                            }
+                        }
+                        else
+                        {
+                            MelonLogger.Error($"File does not exist: {fullPath}");
+                        }
+                    }
+                }
+                catch (System.Exception ex)
+                {
+                    MelonLogger.Error($"Failed to load from file: {ex.Message}");
+                }
+            }
+
+            if (GUI.Button(new Rect(pad + innerW - 60, curY, 60, 30), "Save File", closeButtonStyle))
+            {
+                try
+                {
+                    string userDir = System.IO.Path.Combine(MelonEnvironment.UserDataDirectory, "Beyond");
+                    System.IO.Directory.CreateDirectory(userDir);
+                    string defaultFile = skillsetFileInput.Trim();
+                    string fullPath = ShowSaveFileDialog(userDir, defaultFile);
+                    if (!string.IsNullOrEmpty(fullPath))
+                    {
+                        skillsetFileInput = System.IO.Path.GetFileName(fullPath);
+                        string delStr = string.Join(",", retroDelayInputs);
+                        string payload = $"{skillsetEditName}|{skillsetEditCombo}|{delStr}";
+                        System.IO.File.WriteAllText(fullPath, payload);
+                        skillsetImportExportText = payload;
+                        MelonLogger.Msg($"Saved skillset setup to file: {fullPath}");
+                    }
+                }
+                catch (System.Exception ex)
+                {
+                    MelonLogger.Error($"Failed to save to file: {ex.Message}");
+                }
+            }
+            curY += 40f;
+
+            // 5. Skill Delay Configuration
+            GUI.Label(new Rect(pad, curY, innerW, 20), "<b>Skill Delays:</b>", labelStyle);
+            curY += 20f;
+
+            for (int i = 0; i < 5; i++)
+            {
+                GUI.Label(new Rect(pad, curY, 90, 30), GetSkillKeyName(i), labelStyle);
+                
+                string delayStr = retroDelayInputs[i];
+                string newDelayStr = GUI.TextField(new Rect(pad + 100, curY, innerW - 100, 30), delayStr, textFieldStyle);
+                if (newDelayStr != delayStr)
+                {
+                    retroDelayInputs[i] = newDelayStr;
+                    if (float.TryParse(newDelayStr, out float ms))
+                    {
+                        retroSkillDelays[i] = ms / 1000f;
+                    }
+                }
+
+                curY += 35f;
+            }
+            curY += 10f;
+
+            if (GUI.Button(new Rect(pad, curY, innerW, 35), "Close Window", closeButtonStyle))
+            {
+                showRetroTestsWindow = false;
+            }
+            curY += 45f;
+
+            retroTestsWindowRect.height = curY;
+            GUI.DragWindow(new Rect(0, 0, winWidth, 30));
+        }
+
+        private static System.Collections.Generic.List<int> ParseCombo(string comboStr)
+        {
+            var list = new System.Collections.Generic.List<int>();
+            if (string.IsNullOrEmpty(comboStr)) return list;
+            string[] parts = comboStr.Split(',');
+            foreach (string part in parts)
+            {
+                if (int.TryParse(part.Trim(), out int keyNum))
+                {
+                    int slot = keyNum - 1;
+                    if (slot >= 0 && slot < 5)
+                    {
+                        list.Add(slot);
+                    }
+                }
+            }
+            return list;
+        }
+
+        private static void AddOrUpdateSkillset(string name, string combo, string delays)
+        {
+            if (string.IsNullOrEmpty(name)) return;
+            var existingIdx = savedSkillsets.FindIndex(s => s.Name.Equals(name, System.StringComparison.OrdinalIgnoreCase));
+            if (existingIdx >= 0)
+            {
+                savedSkillsets[existingIdx].Combo = combo;
+                savedSkillsets[existingIdx].Delays = delays;
+                selectedSkillsetIndex = existingIdx;
+            }
+            else
+            {
+                savedSkillsets.Add(new SkillsetEntry
+                {
+                    Name = name,
+                    Combo = combo,
+                    Delays = delays
+                });
+                selectedSkillsetIndex = savedSkillsets.Count - 1;
+            }
+            SaveSkillsets();
+        }
+
+        private static void LoadSkillsets()
+        {
+            try
+            {
+                if (System.IO.File.Exists(_skillsetFilePath))
+                {
+                    string json = System.IO.File.ReadAllText(_skillsetFilePath);
+                    savedSkillsets = Newtonsoft.Json.JsonConvert.DeserializeObject<System.Collections.Generic.List<SkillsetEntry>>(json) ?? new();
+                    MelonLogger.Msg($"Loaded {savedSkillsets.Count} saved skillsets.");
+                }
+                else
+                {
+                    savedSkillsets = new();
+                }
+            }
+            catch (System.Exception ex)
+            {
+                MelonLogger.Error($"Failed to load skillsets: {ex.Message}");
+            }
+        }
+
+        private static void SaveSkillsets()
+        {
+            try
+            {
+                if (!string.IsNullOrEmpty(_skillsetFilePath))
+                {
+                    string json = Newtonsoft.Json.JsonConvert.SerializeObject(savedSkillsets, Newtonsoft.Json.Formatting.Indented);
+                    System.IO.File.WriteAllText(_skillsetFilePath, json);
+                    MelonLogger.Msg("Saved skillsets successfully.");
+                }
+            }
+            catch (System.Exception ex)
+            {
+                MelonLogger.Error($"Failed to save skillsets: {ex.Message}");
+            }
         }
 
         private void DrawInterceptorWindow(int windowID)
@@ -2103,6 +2685,11 @@ namespace Infinity_TestMod
                 return true;
             }
 
+            if (showWindow && showRetroTestsWindow && retroTestsWindowRect.Contains(imguiMousePos))
+            {
+                return true;
+            }
+
             return false;
         }
 
@@ -2326,5 +2913,115 @@ namespace Infinity_TestMod
             distance = Mathf.Min(dBar, dDot);
             return distance <= 0f;
         }
+
+        #region Win32 File Dialogs
+        [System.Runtime.InteropServices.StructLayout(System.Runtime.InteropServices.LayoutKind.Sequential, CharSet = System.Runtime.InteropServices.CharSet.Auto)]
+        public class OpenFileName
+        {
+            public int lStructSize = 0;
+            public System.IntPtr hwndOwner = System.IntPtr.Zero;
+            public System.IntPtr hInstance = System.IntPtr.Zero;
+            public string lpstrFilter = null;
+            public string lpstrCustomFilter = null;
+            public int nMaxCustFilter = 0;
+            public int nFilterIndex = 0;
+            public string lpstrFile = null;
+            public int nMaxFile = 0;
+            public string lpstrFileTitle = null;
+            public int nMaxFileTitle = 0;
+            public string lpstrInitialDir = null;
+            public string lpstrTitle = null;
+            public int Flags = 0;
+            public short nFileOffset = 0;
+            public short nFileExtension = 0;
+            public string lpstrDefExt = null;
+            public System.IntPtr lCustData = System.IntPtr.Zero;
+            public System.IntPtr lpfnHook = System.IntPtr.Zero;
+            public string lpTemplateName = null;
+            public System.IntPtr pvReserved = System.IntPtr.Zero;
+            public int dwReserved = 0;
+            public int FlagsEx = 0;
+        }
+
+        [System.Runtime.InteropServices.DllImport("comdlg32.dll", SetLastError = true, CharSet = System.Runtime.InteropServices.CharSet.Auto)]
+        private static extern bool GetOpenFileName([System.Runtime.InteropServices.In, System.Runtime.InteropServices.Out] OpenFileName ofn);
+
+        [System.Runtime.InteropServices.DllImport("comdlg32.dll", SetLastError = true, CharSet = System.Runtime.InteropServices.CharSet.Auto)]
+        private static extern bool GetSaveFileName([System.Runtime.InteropServices.In, System.Runtime.InteropServices.Out] OpenFileName ofn);
+
+        [System.Runtime.InteropServices.DllImport("user32.dll")]
+        private static extern System.IntPtr GetActiveWindow();
+
+        private static string ShowOpenFileDialog(string defaultDir, string defaultFilename)
+        {
+            OpenFileName ofn = new OpenFileName();
+            ofn.lStructSize = System.Runtime.InteropServices.Marshal.SizeOf(ofn);
+            ofn.lpstrFilter = "Text Files (*.txt)\0*.txt\0All Files (*.*)\0*.*\0\0";
+            
+            string initialFile = defaultFilename;
+            if (string.IsNullOrEmpty(initialFile))
+            {
+                initialFile = "";
+            }
+            char[] chars = new char[512];
+            initialFile.CopyTo(0, chars, 0, System.Math.Min(initialFile.Length, chars.Length - 1));
+            ofn.lpstrFile = new string(chars);
+            ofn.nMaxFile = chars.Length;
+            
+            ofn.lpstrInitialDir = defaultDir;
+            ofn.lpstrTitle = "Select Skillset File";
+            ofn.hwndOwner = GetActiveWindow();
+            
+            // OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR
+            ofn.Flags = 0x00080000 | 0x00001000 | 0x00000800 | 0x00000008;
+
+            if (GetOpenFileName(ofn))
+            {
+                int nullIdx = ofn.lpstrFile.IndexOf('\0');
+                if (nullIdx >= 0)
+                {
+                    return ofn.lpstrFile.Substring(0, nullIdx);
+                }
+                return ofn.lpstrFile;
+            }
+            return null;
+        }
+
+        private static string ShowSaveFileDialog(string defaultDir, string defaultFilename)
+        {
+            OpenFileName ofn = new OpenFileName();
+            ofn.lStructSize = System.Runtime.InteropServices.Marshal.SizeOf(ofn);
+            ofn.lpstrFilter = "Text Files (*.txt)\0*.txt\0All Files (*.*)\0*.*\0\0";
+            
+            string initialFile = defaultFilename;
+            if (string.IsNullOrEmpty(initialFile))
+            {
+                initialFile = "skillset.txt";
+            }
+            char[] chars = new char[512];
+            initialFile.CopyTo(0, chars, 0, System.Math.Min(initialFile.Length, chars.Length - 1));
+            ofn.lpstrFile = new string(chars);
+            ofn.nMaxFile = chars.Length;
+            
+            ofn.lpstrInitialDir = defaultDir;
+            ofn.lpstrTitle = "Save Skillset File As";
+            ofn.hwndOwner = GetActiveWindow();
+            ofn.lpstrDefExt = "txt";
+            
+            // OFN_EXPLORER | OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR
+            ofn.Flags = 0x00080000 | 0x00000002 | 0x00000800 | 0x00000008;
+
+            if (GetSaveFileName(ofn))
+            {
+                int nullIdx = ofn.lpstrFile.IndexOf('\0');
+                if (nullIdx >= 0)
+                {
+                    return ofn.lpstrFile.Substring(0, nullIdx);
+                }
+                return ofn.lpstrFile;
+            }
+            return null;
+        }
+        #endregion
     }
 }

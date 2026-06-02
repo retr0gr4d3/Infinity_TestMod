@@ -16,7 +16,7 @@ namespace Infinity_TestMod.Util
     ///   1. Bootstrap — embedded `Data/quests.json` and `Data/shops.json`,
     ///      mined from prior packet captures. Ships with the DLL so the
     ///      catalog is useful on first launch.
-    ///   2. Live — `MelonEnvironment.UserDataDirectory/AQWIB/directory.json`,
+    ///   2. Live — `MelonEnvironment.UserDataDirectory/Beyond/directory.json`,
     ///      grown by AECPatch as new getQuests / loadShop responses arrive.
     ///      Persisted on close, reloaded on next launch.
     ///
@@ -53,7 +53,7 @@ namespace Infinity_TestMod.Util
                 LoadEmbedded("shops.json", LoadShopsJson);
                 MelonLogger.Msg($"[Directory] bootstrap loaded: {Quests.Count} quests, {Shops.Count} shops");
 
-                string userDir = Path.Combine(MelonEnvironment.UserDataDirectory, "AQWIB");
+                string userDir = Path.Combine(MelonEnvironment.UserDataDirectory, "Beyond");
                 System.IO.Directory.CreateDirectory(userDir);
                 _liveFilePath = Path.Combine(userDir, "directory.json");
                 if (File.Exists(_liveFilePath))

@@ -15,7 +15,7 @@ namespace Infinity_TestMod.Util
     ///   {"ts": <float>, "dir": "c2s"|"s2c", "ok": true, "pkt": {...},
     ///    "src": "mod"?  // present for spoofed/injected packets only}
     ///
-    /// Written to MelonLoader/UserData/AQWIB/packets.jsonl so collaborators
+    /// Written to MelonLoader/UserData/Beyond/packets.jsonl so collaborators
     /// can find it next to other MelonLoader output.
     /// </summary>
     public static class PacketLog
@@ -36,7 +36,7 @@ namespace Infinity_TestMod.Util
         {
             try
             {
-                string dir = Path.Combine(MelonEnvironment.UserDataDirectory, "AQWIB");
+                string dir = Path.Combine(MelonEnvironment.UserDataDirectory, "Beyond");
                 System.IO.Directory.CreateDirectory(dir);
                 LogPath = Path.Combine(dir, "packets.jsonl");
                 _fh = new StreamWriter(

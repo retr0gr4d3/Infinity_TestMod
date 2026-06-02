@@ -11,7 +11,7 @@ namespace Infinity_TestMod.Util
     /// <summary>
     /// Named ordered quest chains (e.g. "Lair" → [q19, q20, …]). Loaded from
     /// the embedded `Data/chains.json` bootstrap, then merged with a
-    /// user-editable override at `UserData/AQWIB/chains.json`. The user file
+    /// user-editable override at `UserData/Beyond/chains.json`. The user file
     /// wins entry-by-entry so collaborators can fix mistakes in the bootstrap
     /// without rebuilding the mod.
     /// </summary>
@@ -67,7 +67,7 @@ namespace Infinity_TestMod.Util
 
         static void LoadUserOverride()
         {
-            string path = Path.Combine(MelonEnvironment.UserDataDirectory, "AQWIB", "chains.json");
+            string path = Path.Combine(MelonEnvironment.UserDataDirectory, "Beyond", "chains.json");
             if (!File.Exists(path)) return;
             try
             {

@@ -12,7 +12,7 @@ namespace Infinity_TestMod.Util
     /// <summary>
     /// Passive catalog of gear seen on any character in the world. Fed by the
     /// harvester patches (e.g. ArmorHarvestPatch). Persisted to
-    /// `MelonEnvironment.UserDataDirectory/AQWIB/items.json`. Keyed by bundle
+    /// `MelonEnvironment.UserDataDirectory/Beyond/items.json`. Keyed by bundle
     /// Filename so the same item across different character instances dedupes.
     /// Each entry carries the version triple so the URL builder can produce a
     /// correctly versioned CDN path when spoofing.
@@ -64,7 +64,7 @@ namespace Infinity_TestMod.Util
         {
             try
             {
-                string userDir = Path.Combine(MelonEnvironment.UserDataDirectory, "AQWIB");
+                string userDir = Path.Combine(MelonEnvironment.UserDataDirectory, "Beyond");
                 System.IO.Directory.CreateDirectory(userDir);
                 _liveFilePath = Path.Combine(userDir, "items.json");
                 if (File.Exists(_liveFilePath)) LoadLive(_liveFilePath);
