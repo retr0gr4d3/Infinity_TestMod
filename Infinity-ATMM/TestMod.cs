@@ -26,6 +26,7 @@ namespace Infinity_TestMod
         private static bool defaultsCaptured = false;
         private static int defaultUpgradeDays = 0;
         private static int defaultAccessLevel = 0;
+        private static bool defaultFounder = false;
 
         public static bool showShopLoaderWindow = false;
         public static Rect shopLoaderWindowRect = new(330, 100, 280, 205);
@@ -56,6 +57,12 @@ namespace Infinity_TestMod
         public static QuestRunner questRunner = new QuestRunner();
         public static bool showQuestRunnerWindow = false;
         public static Rect questRunnerWindowRect = new(20, 660, 640, 480);
+
+        public static bool showFunWindow = false;
+        public static bool fakeBadgesActive = false;
+        public static Rect funWindowRect = new(330, 480, 280, 310);
+        private static string chainDelayInput = "500";
+        private static float chainDelaySeconds = 0.5f;
         private static string questRunnerIdInput = "1";
         private static string questRunnerItersInput = "10";
         // Optional cell-hop before hunting. Empty Frame = no hop (stay where you are).
@@ -481,6 +488,18 @@ namespace Infinity_TestMod
                     questRunnerWindowRect = GUI.Window(9993, questRunnerWindowRect, DrawQuestRunnerWindow, "Quest Runner");
                 }
             }
+
+            if (showWindow && showFunWindow)
+            {
+                if (windowStyle != null)
+                {
+                    funWindowRect = GUI.Window(9989, funWindowRect, DrawFunWindow, "Fun", windowStyle);
+                }
+                else
+                {
+                    funWindowRect = GUI.Window(9989, funWindowRect, DrawFunWindow, "Fun");
+                }
+            }
         }
 
         private void DrawWindow(int windowID)
@@ -498,8 +517,9 @@ namespace Infinity_TestMod
                     {
                         defaultUpgradeDays = Entity.mainPlayer.UpgradeDays;
                         defaultAccessLevel = Entity.mainPlayer.AccessLevel;
+                        defaultFounder = Entity.mainPlayer.Founder;
                         defaultsCaptured = true;
-                        LoggerInstance.Msg($"Captured player default privileges: UpgradeDays={defaultUpgradeDays}, AccessLevel={defaultAccessLevel}");
+                        LoggerInstance.Msg($"Captured player default privileges: UpgradeDays={defaultUpgradeDays}, AccessLevel={defaultAccessLevel}, Founder={defaultFounder}");
                     }
                 }
             }
@@ -668,6 +688,28 @@ namespace Infinity_TestMod
             if (GUI.Button(new Rect(20, curY, 260, 35), runnerBtnText, closeButtonStyle))
             {
                 showQuestRunnerWindow = !showQuestRunnerWindow;
+            }
+            curY += 35f;
+
+            if (separatorTexture != null)
+            {
+                curY += 6f;
+                GUI.DrawTexture(new Rect(20, curY, 260, 2), separatorTexture);
+                curY += 2f + 6f;
+            }
+            else
+            {
+                curY += 10f;
+            }
+
+            // Section 6: Fun
+            GUI.Label(new Rect(20, curY, 260, 20), "<b>Fun</b>", labelStyle);
+            curY += 22f;
+
+            string funBtnText = showFunWindow ? "Hide Fun" : "Fun";
+            if (GUI.Button(new Rect(20, curY, 260, 35), funBtnText, closeButtonStyle))
+            {
+                showFunWindow = !showFunWindow;
             }
             curY += 35f + 10f;
 
@@ -1126,6 +1168,15 @@ namespace Infinity_TestMod
             if (string.IsNullOrEmpty(json)) return (false, "empty JSON");
             try
             {
+                // Minify JSON if possible to ensure the game's internal parser (Util.extractValueFromJsonString)
+                // can successfully extract the "Cmd" property even if the user entered prettified multi-line JSON.
+                string minifiedJson = json;
+                try
+                {
+                    minifiedJson = Newtonsoft.Json.Linq.JObject.Parse(json).ToString(Newtonsoft.Json.Formatting.None);
+                }
+                catch { }
+
                 if (AEC.Instance != null)
                 {
                     if (_wrapAndQueueResponseMethod == null)
@@ -1134,10 +1185,10 @@ namespace Infinity_TestMod
                     }
                     if (_wrapAndQueueResponseMethod != null)
                     {
-                        byte[] data = System.Text.Encoding.UTF8.GetBytes(json);
+                        byte[] data = System.Text.Encoding.UTF8.GetBytes(minifiedJson);
                         _wrapAndQueueResponseMethod.Invoke(AEC.Instance, new object[] { data });
                         MelonLogger.Msg("[Packet Receiver] Successfully injected fake server packet.");
-                        Infinity_TestMod.Util.PacketLog.Write("s2c", json, synthetic: true);
+                        Infinity_TestMod.Util.PacketLog.Write("s2c", minifiedJson, synthetic: true);
                         return (true, "AEC Queue");
                     }
                     else
@@ -1174,12 +1225,18 @@ namespace Infinity_TestMod
             bool isMember = false;
             try { if (playerExists) isMember = Entity.mainPlayer.UpgradeDays > 0; } catch { }
 
+            bool isFounder = false;
+            try { if (playerExists) isFounder = Entity.mainPlayer.Founder; } catch { }
+
+            float curY = 35f;
+
             // 1. Membership section
-            GUI.Label(new Rect(pad, 35, innerW, 20), "Membership:", labelStyle);
+            GUI.Label(new Rect(pad, curY, innerW, 20), "Membership:", labelStyle);
+            curY += 20f;
             string memLabel = isMember ? "▶ Member (Active)" : "Non-Member";
             if (playerExists)
             {
-                if (GUI.Button(new Rect(pad, 55, innerW, 35), memLabel, closeButtonStyle))
+                if (GUI.Button(new Rect(pad, curY, innerW, 35), memLabel, closeButtonStyle))
                 {
                     try
                     {
@@ -1196,24 +1253,54 @@ namespace Infinity_TestMod
             else
             {
                 GUI.enabled = false;
-                GUI.Button(new Rect(pad, 55, innerW, 35), memLabel, closeButtonStyle);
+                GUI.Button(new Rect(pad, curY, innerW, 35), memLabel, closeButtonStyle);
                 GUI.enabled = true;
             }
+            curY += 40f;
 
-            // 2. Access Levels section
-            GUI.Label(new Rect(pad, 100, innerW, 20), "Access Levels (hasAccess checks):", labelStyle);
+            // 2. Founder section
+            GUI.Label(new Rect(pad, curY, innerW, 20), "Founder Status:", labelStyle);
+            curY += 20f;
+            string founderLabel = isFounder ? "▶ Founder (Active)" : "Non-Founder";
+            if (playerExists)
+            {
+                if (GUI.Button(new Rect(pad, curY, innerW, 35), founderLabel, closeButtonStyle))
+                {
+                    try
+                    {
+                        Entity.mainPlayer.Founder = !isFounder;
+                        LoggerInstance.Msg($"Set client Founder to {!isFounder}.");
+                    }
+                    catch (System.Exception ex)
+                    {
+                        LoggerInstance.Error($"Error toggling founder: {ex}");
+                    }
+                }
+            }
+            else
+            {
+                GUI.enabled = false;
+                GUI.Button(new Rect(pad, curY, innerW, 35), founderLabel, closeButtonStyle);
+                GUI.enabled = true;
+            }
+            curY += 40f;
+
+            // 3. Access Levels section
+            GUI.Label(new Rect(pad, curY, innerW, 20), "Access Levels (hasAccess checks):", labelStyle);
+            curY += 25f;
             float btnW = (innerW - 16) / 5f;
-            DrawFakeDevAccessTier(pad,             btnW, "30",  30,  currentLevel, playerExists);
-            DrawFakeDevAccessTier(pad + btnW + 4,  btnW, "40",  40,  currentLevel, playerExists);
-            DrawFakeDevAccessTier(pad + (btnW + 4)*2, btnW, "50",  50,  currentLevel, playerExists);
-            DrawFakeDevAccessTier(pad + (btnW + 4)*3, btnW, "60",  60,  currentLevel, playerExists);
-            DrawFakeDevAccessTier(pad + (btnW + 4)*4, btnW, "100", 100, currentLevel, playerExists);
+            DrawFakeDevAccessTier(pad,             btnW, "30",  30,  currentLevel, playerExists, curY);
+            DrawFakeDevAccessTier(pad + btnW + 4,  btnW, "40",  40,  currentLevel, playerExists, curY);
+            DrawFakeDevAccessTier(pad + (btnW + 4)*2, btnW, "50",  50,  currentLevel, playerExists, curY);
+            DrawFakeDevAccessTier(pad + (btnW + 4)*3, btnW, "60",  60,  currentLevel, playerExists, curY);
+            DrawFakeDevAccessTier(pad + (btnW + 4)*4, btnW, "100", 100, currentLevel, playerExists, curY);
+            curY += 40f;
 
-            // 3. Actions: Dev UI, Reset, Close
+            // 4. Actions: Dev UI, Reset, Close
             float actionBtnW = (innerW - 10) / 2f;
             if (playerExists)
             {
-                if (GUI.Button(new Rect(pad, 170, actionBtnW, 35), "Open Dev UI", closeButtonStyle))
+                if (GUI.Button(new Rect(pad, curY, actionBtnW, 35), "Open Dev UI", closeButtonStyle))
                 {
                     try
                     {
@@ -1226,7 +1313,7 @@ namespace Infinity_TestMod
                     }
                 }
 
-                if (GUI.Button(new Rect(pad + actionBtnW + 10, 170, actionBtnW, 35), "Reset to Default", closeButtonStyle))
+                if (GUI.Button(new Rect(pad + actionBtnW + 10, curY, actionBtnW, 35), "Reset to Default", closeButtonStyle))
                 {
                     try
                     {
@@ -1234,8 +1321,9 @@ namespace Infinity_TestMod
                         {
                             Entity.mainPlayer.UpgradeDays = defaultUpgradeDays;
                             Entity.mainPlayer.AccessLevel = defaultAccessLevel;
+                            Entity.mainPlayer.Founder = defaultFounder;
                             Entity.mainPlayer.updateNameColor();
-                            LoggerInstance.Msg($"Reset player privileges to defaults: UpgradeDays={defaultUpgradeDays}, AccessLevel={defaultAccessLevel}");
+                            LoggerInstance.Msg($"Reset player privileges to defaults: UpgradeDays={defaultUpgradeDays}, AccessLevel={defaultAccessLevel}, Founder={defaultFounder}");
                         }
                         else
                         {
@@ -1251,31 +1339,35 @@ namespace Infinity_TestMod
             else
             {
                 GUI.enabled = false;
-                GUI.Button(new Rect(pad, 170, actionBtnW, 35), "Open Dev UI", closeButtonStyle);
-                GUI.Button(new Rect(pad + actionBtnW + 10, 170, actionBtnW, 35), "Reset to Default", closeButtonStyle);
+                GUI.Button(new Rect(pad, curY, actionBtnW, 35), "Open Dev UI", closeButtonStyle);
+                GUI.Button(new Rect(pad + actionBtnW + 10, curY, actionBtnW, 35), "Reset to Default", closeButtonStyle);
                 GUI.enabled = true;
             }
+            curY += 45f;
 
-            if (GUI.Button(new Rect(pad, 215, innerW, 35), "Close", closeButtonStyle))
+            if (GUI.Button(new Rect(pad, curY, innerW, 35), "Close", closeButtonStyle))
             {
                 showFakeDevWindow = false;
             }
+            curY += 35f;
+
+            fakeDevWindowRect.height = curY + 20f;
 
             GUI.DragWindow(new Rect(0, 0, winWidth, 30));
         }
 
-        private void DrawFakeDevAccessTier(float x, float width, string label, int level, int currentLevel, bool playerExists)
+        private void DrawFakeDevAccessTier(float x, float width, string label, int level, int currentLevel, bool playerExists, float y)
         {
             bool active = (currentLevel == level);
             string text = active ? "▶ " + label : label;
             if (!playerExists)
             {
                 GUI.enabled = false;
-                GUI.Button(new Rect(x, 125, width, 35), text, closeButtonStyle);
+                GUI.Button(new Rect(x, y, width, 35), text, closeButtonStyle);
                 GUI.enabled = true;
                 return;
             }
-            if (GUI.Button(new Rect(x, 125, width, 35), text, closeButtonStyle))
+            if (GUI.Button(new Rect(x, y, width, 35), text, closeButtonStyle))
             {
                 try
                 {
@@ -1655,6 +1747,307 @@ namespace Infinity_TestMod
             GUI.DragWindow(new Rect(0, 0, winWidth, 30));
         }
 
+        private void DrawFunWindow(int windowID)
+        {
+            float winWidth = funWindowRect.width;
+            float pad = 20f;
+            float innerW = winWidth - pad * 2;
+
+            if (GUI.Button(new Rect(pad, 35, innerW, 35), "Free Real Estate", closeButtonStyle))
+            {
+                try
+                {
+                    Entity.myPlayerData.Info.DF = 1;
+                    FakeServerPacket("{\"Cmd\":\"chatm\",\"msg\":\"stage 1\",\"Name\":\"SERVER\",\"channel\":\"server\"}");
+
+                    Entity.myPlayerData.Info.MQ = 1;
+                    FakeServerPacket("{\"Cmd\":\"chatm\",\"msg\":\"stage 2\",\"Name\":\"SERVER\",\"channel\":\"server\"}");
+
+                    Entity.myPlayerData.Info.AQ = 1;
+                    FakeServerPacket("{\"Cmd\":\"chatm\",\"msg\":\"stage 3\",\"Name\":\"SERVER\",\"channel\":\"server\"}");
+
+                    Entity.myPlayerData.Info.DF.Equals(1);
+                    FakeServerPacket("{\"Cmd\":\"chatm\",\"msg\":\"stage 4\",\"Name\":\"SERVER\",\"channel\":\"server\"}");
+
+                    Entity.myPlayerData.Info.MQ.Equals(1);
+                    FakeServerPacket("{\"Cmd\":\"chatm\",\"msg\":\"stage 5\",\"Name\":\"SERVER\",\"channel\":\"server\"}");
+
+                    Entity.myPlayerData.Info.AQ.Equals(1);
+                    FakeServerPacket("{\"Cmd\":\"chatm\",\"msg\":\"stage 6\",\"Name\":\"SERVER\",\"channel\":\"server\"}");
+
+                    FakeServerPacket("{\"Cmd\":\"chatm\",\"msg\":\"Shops Unlocked\",\"Name\":\"SERVER\",\"channel\":\"server\"}");
+                    LoggerInstance.Msg("Free Real Estate activated successfully!");
+                }
+                catch (System.Exception ex)
+                {
+                    LoggerInstance.Error($"Error in Free Real Estate: {ex}");
+                }
+            }
+
+            if (GUI.Button(new Rect(pad, 80, innerW, 35), "Test", closeButtonStyle))
+            {
+                try
+                {
+                    if (AEC.Instance != null)
+                    {
+                        AEC.Instance.sendRequest(new Request("buyItem", new System.Collections.Generic.List<string> { "73766", "54", "44566" }));
+                        LoggerInstance.Msg("[Fun Test] Sent buyItem packet: Cmd='buyItem', Params=['73766', '54', '44566']");
+                        FakeServerPacket("{\"Cmd\":\"chatm\",\"msg\":\"Attempting to buy 73766\",\"Name\":\"SERVER\",\"channel\":\"server\"}");
+                    }
+                    else
+                    {
+                        LoggerInstance.Error("AEC.Instance is null, cannot send packet.");
+                    }
+                }
+                catch (System.Exception ex)
+                {
+                    LoggerInstance.Error($"Error sending Test packet: {ex.Message}");
+                }
+            }
+
+            GUI.Label(new Rect(pad, 125, 90, 35), "Delay (ms):", labelStyle);
+            string newDelayInput = GUI.TextField(new Rect(pad + 95, 125, innerW - 95, 35), chainDelayInput, textFieldStyle);
+            if (newDelayInput != chainDelayInput)
+            {
+                chainDelayInput = newDelayInput;
+                if (float.TryParse(newDelayInput, out float ms))
+                {
+                    chainDelaySeconds = ms / 1000f;
+                }
+            }
+
+            float btnW = (innerW - 10) / 2f;
+            if (GUI.Button(new Rect(pad, 170, btnW, 35), "ChainBuy", closeButtonStyle))
+            {
+                RunChainFile("ChainBuy");
+            }
+
+            if (GUI.Button(new Rect(pad + btnW + 10, 170, btnW, 35), "ChainSell", closeButtonStyle))
+            {
+                RunChainFile("ChainSell");
+            }
+
+            if (GUI.Button(new Rect(pad, 215, innerW, 35), "Set Level 100", closeButtonStyle))
+            {
+                try
+                {
+                    if (Entity.mainPlayer != null)
+                    {
+                        var player = Entity.mainPlayer;
+                        var prop = typeof(Player).GetProperty("Level", System.Reflection.BindingFlags.Instance | System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic);
+                        if (prop != null)
+                        {
+                            prop.SetValue(player, 100);
+                            player.Level.Equals(100);
+                            MelonLogger.Msg("Set player level to 100 successfully!");
+                        }
+                        else
+                        {
+                            MelonLogger.Error("Could not find Level property on Player class via reflection.");
+                        }
+                    }
+                    else
+                    {
+                        MelonLogger.Error("mainPlayer is null, cannot set level.");
+                    }
+                }
+                catch (System.Exception ex)
+                {
+                    MelonLogger.Error($"Error setting level: {ex}");
+                }
+            }
+
+            if (GUI.Button(new Rect(pad, 260, innerW, 35), fakeBadgesActive ? "Fake Badges: ON" : "Fake Badges: OFF", closeButtonStyle))
+            {
+                fakeBadgesActive = !fakeBadgesActive;
+                MelonLogger.Msg($"[Fun Menu] Fake Badges toggled: {(fakeBadgesActive ? "ON" : "OFF")}");
+            }
+
+            if (GUI.Button(new Rect(pad, 305, innerW, 35), "Check Badges", closeButtonStyle))
+            {
+                try
+                {
+                    if (Entity.mainPlayer != null && Entity.myPlayerData != null && Entity.myPlayerData.Info != null)
+                    {
+                        var player = Entity.mainPlayer;
+                        var info = Entity.myPlayerData.Info;
+
+                        MelonLogger.Msg("=== Player Badge / Achievement Status ===");
+                        MelonLogger.Msg($"Founder: {player.Founder}");
+                        MelonLogger.Msg($"Member (UpgradeDays): {player.UpgradeDays}");
+                        MelonLogger.Msg($"AccessLevel: {player.AccessLevel}");
+                        MelonLogger.Msg($"Fake Badges active: {fakeBadgesActive}");
+
+                        FakeServerPacket($"{{\"Cmd\":\"chatm\",\"msg\":\"[Badges] Founder={player.Founder}, Member={player.UpgradeDays > 0}, FakeBadges={fakeBadgesActive}\",\"Name\":\"SERVER\",\"channel\":\"server\"}}");
+
+                        if (info.achievements != null)
+                        {
+                            MelonLogger.Msg($"Achievements/Bitflags category count: {info.achievements.Count}");
+                            foreach (var kv in info.achievements)
+                            {
+                                MelonLogger.Msg($"  - Category '{kv.Key}': Bitmask = 0x{kv.Value:X8} (Binary: {System.Convert.ToString(kv.Value, 2).PadLeft(32, '0')})");
+                            }
+                            FakeServerPacket($"{{\"Cmd\":\"chatm\",\"msg\":\"[Badges] Achievements: {info.achievements.Count} categories logged to console.\",\"Name\":\"SERVER\",\"channel\":\"server\"}}");
+                        }
+                        else
+                        {
+                            MelonLogger.Msg("Achievements dictionary is null.");
+                            FakeServerPacket("{\"Cmd\":\"chatm\",\"msg\":\"[Badges] achievements list is null.\",\"Name\":\"SERVER\",\"channel\":\"server\"}");
+                        }
+                    }
+                    else
+                    {
+                        MelonLogger.Error("Player instances are null, cannot check badges.");
+                    }
+                }
+                catch (System.Exception ex)
+                {
+                    MelonLogger.Error($"Error checking badges: {ex}");
+                }
+            }
+
+            if (GUI.Button(new Rect(pad, 350, innerW, 35), "Close", closeButtonStyle))
+            {
+                showFunWindow = false;
+            }
+
+            funWindowRect.height = 400f;
+
+            GUI.DragWindow(new Rect(0, 0, winWidth, 30));
+        }
+
+        public class ChainRequest
+        {
+            public string Cmd;
+            public System.Collections.Generic.List<string> Params;
+            public Request RawRequest;
+        }
+
+        private static System.Collections.IEnumerator SendChainPacketsCoroutine(System.Collections.Generic.List<ChainRequest> requests)
+        {
+            FakeServerPacket("{\"Cmd\":\"chatm\",\"msg\":\"=== CHAIN BEGIN ===\",\"Name\":\"SERVER\",\"channel\":\"server\"}");
+            for (int i = 0; i < requests.Count; i++)
+            {
+                if (AEC.Instance != null)
+                {
+                    var req = requests[i];
+                    AEC.Instance.sendRequest(req.RawRequest);
+                    MelonLogger.Msg($"[Fun Chain] Sent packet {i + 1}/{requests.Count}: Cmd={req.Cmd}");
+
+                    string itemID = (req.Params != null && req.Params.Count > 0) ? req.Params[0] : "unknown";
+                    if (req.Cmd == "buyItem")
+                    {
+                        FakeServerPacket($"{{\"Cmd\":\"chatm\",\"msg\":\"Attempting to buy {itemID}\",\"Name\":\"SERVER\",\"channel\":\"server\"}}");
+                    }
+                    else if (req.Cmd == "sellItem")
+                    {
+                        FakeServerPacket($"{{\"Cmd\":\"chatm\",\"msg\":\"Attempting to sell {itemID}\",\"Name\":\"SERVER\",\"channel\":\"server\"}}");
+                    }
+                }
+                if (i < requests.Count - 1)
+                {
+                    yield return new WaitForSeconds(chainDelaySeconds);
+                }
+            }
+            FakeServerPacket("{\"Cmd\":\"chatm\",\"msg\":\"=== CHAIN FINISHED ===\",\"Name\":\"SERVER\",\"channel\":\"server\"}");
+        }
+
+        private void RunChainFile(string fileName)
+        {
+            try
+            {
+                if (AEC.Instance != null)
+                {
+                    string userDataDir = MelonLoader.Utils.MelonEnvironment.UserDataDirectory;
+                    string[] possiblePaths = new string[]
+                    {
+                        System.IO.Path.Combine(userDataDir, fileName),
+                        System.IO.Path.Combine(userDataDir, fileName + ".txt"),
+                        System.IO.Path.Combine(userDataDir, "AQWIB", fileName),
+                        System.IO.Path.Combine(userDataDir, "AQWIB", fileName + ".txt"),
+                        fileName,
+                        fileName + ".txt"
+                    };
+
+                    string foundPath = null;
+                    foreach (var path in possiblePaths)
+                    {
+                        if (System.IO.File.Exists(path))
+                        {
+                            foundPath = path;
+                            break;
+                        }
+                    }
+
+                    string content = null;
+                    if (foundPath != null)
+                    {
+                        content = System.IO.File.ReadAllText(foundPath);
+                        MelonLogger.Msg($"[Fun Chain] Reading packets from file: {foundPath}");
+                    }
+                    else
+                    {
+                        // Load from embedded resource
+                        string resName = $"Infinity_TestMod.Data.{fileName}";
+                        using (var stream = typeof(TestMod).Assembly.GetManifestResourceStream(resName))
+                        {
+                            if (stream != null)
+                            {
+                                using (var reader = new System.IO.StreamReader(stream))
+                                {
+                                    content = reader.ReadToEnd();
+                                    MelonLogger.Msg($"[Fun Chain] Reading packets from embedded resource: {resName}");
+                                }
+                            }
+                        }
+                    }
+
+                    if (content != null)
+                    {
+                        System.Collections.Generic.List<ChainRequest> requestsToSend = new System.Collections.Generic.List<ChainRequest>();
+                        using (var stringReader = new System.IO.StringReader(content))
+                        using (var jsonReader = new Newtonsoft.Json.JsonTextReader(stringReader))
+                        {
+                            jsonReader.SupportMultipleContent = true;
+                            while (jsonReader.Read())
+                            {
+                                if (jsonReader.TokenType == Newtonsoft.Json.JsonToken.StartObject)
+                                {
+                                    var token = Newtonsoft.Json.Linq.JObject.Load(jsonReader);
+                                    string cmd = (string)token["Cmd"];
+                                    var paramsToken = token["Params"];
+                                    System.Collections.Generic.List<string> parameters = paramsToken != null ? paramsToken.ToObject<System.Collections.Generic.List<string>>() : new System.Collections.Generic.List<string>();
+                                    requestsToSend.Add(new ChainRequest
+                                    {
+                                        Cmd = cmd,
+                                        Params = parameters,
+                                        RawRequest = new Request(cmd, parameters)
+                                    });
+                                }
+                            }
+                        }
+
+                        if (requestsToSend.Count > 0)
+                        {
+                            MelonCoroutines.Start(SendChainPacketsCoroutine(requestsToSend));
+                        }
+                    }
+                    else
+                    {
+                        MelonLogger.Error($"Could not find file '{fileName}' on disk or as an embedded resource.");
+                    }
+                }
+                else
+                {
+                    MelonLogger.Error("AEC.Instance is null, cannot send packet.");
+                }
+            }
+            catch (System.Exception ex)
+            {
+                MelonLogger.Error($"Error in Chain execution for {fileName}: {ex}");
+            }
+        }
+
         public static bool IsMouseOverUI()
         {
             float mouseX = Input.mousePosition.x;
@@ -1707,6 +2100,11 @@ namespace Infinity_TestMod
             }
 
             if (showWindow && showQuestRunnerWindow && questRunnerWindowRect.Contains(imguiMousePos))
+            {
+                return true;
+            }
+
+            if (showWindow && showFunWindow && funWindowRect.Contains(imguiMousePos))
             {
                 return true;
             }

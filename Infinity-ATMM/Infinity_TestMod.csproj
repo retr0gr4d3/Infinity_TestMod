@@ -90,6 +90,8 @@
     <EmbeddedResource Include="Data\quests.json" />
     <EmbeddedResource Include="Data\shops.json" />
     <EmbeddedResource Include="Data\chains.json" />
+    <EmbeddedResource Include="Data\ChainBuy" />
+    <EmbeddedResource Include="Data\ChainSell" />
   </ItemGroup>
 
   <ItemGroup>
