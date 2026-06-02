@@ -165,12 +165,18 @@ namespace Infinity_TestMod
             public string Name { get; set; }
             public string Combo { get; set; }
             public string Delays { get; set; }
+            public bool WaitForSkill { get; set; }
+            public string Waits { get; set; }
+            public string Frees { get; set; }
         }
 
         private static System.Collections.Generic.List<SkillsetEntry> savedSkillsets = new();
         private static int selectedSkillsetIndex = -1;
-        private static string skillsetEditName = "My skillset";
-        private static string skillsetEditCombo = "2,3,4,2,3,2,3,2,1,3,4,5";
+        private static string skillsetEditName = "Generic";
+        private static string skillsetEditCombo = "1,2,3,4,5";
+        private static bool[] retroSkillWaits = new bool[5] { false, false, false, false, false };
+        private static bool[] retroSkillFrees = new bool[5] { false, false, false, false, false };
+        private static bool lastCastWasFree = false;
         private static string skillsetImportExportText = "";
         private static string skillsetFileInput = "export_skillset.txt";
         private static string _skillsetFilePath;
@@ -328,6 +334,54 @@ namespace Infinity_TestMod
 
                     if (playerExists)
                     {
+                        // Check if any "use when free" skill is off cooldown and ready
+                        int freeCastSlot = -1;
+                        if (!lastCastWasFree)
+                        {
+                            for (int i = 0; i < 5; i++)
+                            {
+                                if (retroSkillFrees[i])
+                                {
+                                    if (UISkillSlots.Instance != null)
+                                    {
+                                        SkillSlotButton slotBtn = UISkillSlots.Instance.GetSlot(i);
+                                        if (slotBtn != null && !IsSkillSlotButtonDisabled(slotBtn) && !IsSkillOnCooldown(slotBtn))
+                                        {
+                                            freeCastSlot = i;
+                                            break;
+                                        }
+                                    }
+                                }
+                            }
+                        }
+
+                        if (freeCastSlot != -1)
+                        {
+                            try
+                            {
+                                SkillSlotButton slotBtn = UISkillSlots.Instance.GetSlot(freeCastSlot);
+                                if (slotBtn != null)
+                                {
+                                    slotBtn.UseSkill(true);
+                                    slotBtn.UseSkill(false);
+                                    LoggerInstance.Msg($"Retro Autoskill casted free slot: {freeCastSlot}");
+                                    lastCastWasFree = true;
+                                    
+                                    float delay = 1f;
+                                    if (retroSkillDelays.ContainsKey(freeCastSlot))
+                                    {
+                                        delay = retroSkillDelays[freeCastSlot];
+                                    }
+                                    retroNextSkillTime = Time.time + delay;
+                                    return; // Wait for delay, do not execute normal combo
+                                }
+                            }
+                            catch (System.Exception ex)
+                            {
+                                LoggerInstance.Error($"Error casting free retro autoskill: {ex}");
+                            }
+                        }
+
                         var combo = activeComboList.Count > 0 ? activeComboList : new System.Collections.Generic.List<int>() { 0, 1, 2, 3, 4 };
                         if (combo.Count > 0)
                         {
@@ -356,7 +410,7 @@ namespace Infinity_TestMod
                                     if (UISkillSlots.Instance != null)
                                     {
                                         SkillSlotButton slotBtn = UISkillSlots.Instance.GetSlot(targetSkillSlot);
-                                        if (slotBtn != null && !IsSkillSlotButtonDisabled(slotBtn))
+                                        if (slotBtn != null && !IsSkillSlotButtonDisabled(slotBtn) && !IsSkillOnCooldown(slotBtn))
                                         {
                                             slotBtn.UseSkill(true);
                                             slotBtn.UseSkill(false);
@@ -379,13 +433,23 @@ namespace Infinity_TestMod
                                     }
                                     retroNextSkillTime = Time.time + delay;
                                     retroCurrentSkillIndex = (retroCurrentSkillIndex + 1) % combo.Count;
+                                    lastCastWasFree = false;
                                 }
                                 else
                                 {
                                     // Skill was on cooldown/disabled. Check again in 100ms.
                                     retroNextSkillTime = Time.time + 0.1f;
-                                    // Advance index to not get stuck on this step
-                                    retroCurrentSkillIndex = (retroCurrentSkillIndex + 1) % combo.Count;
+                                    bool waitThisSkill = false;
+                                    if (targetSkillSlot >= 0 && targetSkillSlot < 5)
+                                    {
+                                        waitThisSkill = retroSkillWaits[targetSkillSlot];
+                                    }
+                                    if (!waitThisSkill)
+                                    {
+                                        // Advance index to not get stuck on this step
+                                        retroCurrentSkillIndex = (retroCurrentSkillIndex + 1) % combo.Count;
+                                    }
+                                    lastCastWasFree = false;
                                 }
                             }
                             else
@@ -1021,6 +1085,7 @@ namespace Infinity_TestMod
                         activeComboList = ParseCombo(skillsetEditCombo);
                         retroCurrentSkillIndex = 0;
                         retroNextSkillTime = Time.time;
+                        lastCastWasFree = false;
                         MelonLogger.Msg("Retro Autoskills activated!");
                     }
                     else
@@ -1082,6 +1147,56 @@ namespace Infinity_TestMod
                     skillsetEditName = savedSkillsets[i].Name;
                     skillsetEditCombo = savedSkillsets[i].Combo;
                     
+                    // Parse waits
+                    if (!string.IsNullOrEmpty(savedSkillsets[i].Waits))
+                    {
+                        string[] waitParts = savedSkillsets[i].Waits.Split(',');
+                        for (int j = 0; j < 5; j++)
+                        {
+                            if (j < waitParts.Length)
+                            {
+                                bool.TryParse(waitParts[j], out retroSkillWaits[j]);
+                            }
+                            else
+                            {
+                                retroSkillWaits[j] = false;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        // Fallback to old global WaitForSkill flag
+                        bool globalWait = savedSkillsets[i].WaitForSkill;
+                        for (int j = 0; j < 5; j++)
+                        {
+                            retroSkillWaits[j] = globalWait;
+                        }
+                    }
+
+                    // Parse frees
+                    if (!string.IsNullOrEmpty(savedSkillsets[i].Frees))
+                    {
+                        string[] freeParts = savedSkillsets[i].Frees.Split(',');
+                        for (int j = 0; j < 5; j++)
+                        {
+                            if (j < freeParts.Length)
+                            {
+                                bool.TryParse(freeParts[j], out retroSkillFrees[j]);
+                            }
+                            else
+                            {
+                                retroSkillFrees[j] = false;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        for (int j = 0; j < 5; j++)
+                        {
+                            retroSkillFrees[j] = false;
+                        }
+                    }
+                    
                     // Parse delays
                     string[] delParts = (savedSkillsets[i].Delays ?? "1000,1000,1000,1000,1000").Split(',');
                     for (int j = 0; j < 5; j++)
@@ -1115,11 +1230,15 @@ namespace Infinity_TestMod
                 if (!string.IsNullOrEmpty(skillsetEditName))
                 {
                     string delStr = string.Join(",", retroDelayInputs);
+                    string waitStr = string.Join(",", retroSkillWaits);
+                    string freeStr = string.Join(",", retroSkillFrees);
                     var existingIdx = savedSkillsets.FindIndex(s => s.Name.Equals(skillsetEditName, System.StringComparison.OrdinalIgnoreCase));
                     if (existingIdx >= 0)
                     {
                         savedSkillsets[existingIdx].Combo = skillsetEditCombo;
                         savedSkillsets[existingIdx].Delays = delStr;
+                        savedSkillsets[existingIdx].Waits = waitStr;
+                        savedSkillsets[existingIdx].Frees = freeStr;
                         selectedSkillsetIndex = existingIdx;
                     }
                     else
@@ -1128,7 +1247,9 @@ namespace Infinity_TestMod
                         {
                             Name = skillsetEditName,
                             Combo = skillsetEditCombo,
-                            Delays = delStr
+                            Delays = delStr,
+                            Waits = waitStr,
+                            Frees = freeStr
                         });
                         selectedSkillsetIndex = savedSkillsets.Count - 1;
                     }
@@ -1158,7 +1279,7 @@ namespace Infinity_TestMod
                 string payload = skillsetImportExportText.Trim();
                 if (!string.IsNullOrEmpty(payload))
                 {
-                    // Format: Name|Combo|Delays
+                    // Format: Name|Combo|Delays|Waits|Frees
                     string[] parts = payload.Split('|');
                     if (parts.Length >= 2)
                     {
@@ -1181,16 +1302,81 @@ namespace Infinity_TestMod
                                 }
                             }
                         }
+                        
+                        string waitStr = "false,false,false,false,false";
+                        if (parts.Length >= 4)
+                        {
+                            string rawWait = parts[3];
+                            if (rawWait.Contains(","))
+                            {
+                                waitStr = rawWait;
+                                string[] waitParts = waitStr.Split(',');
+                                for (int j = 0; j < 5; j++)
+                                {
+                                    if (j < waitParts.Length)
+                                    {
+                                        bool.TryParse(waitParts[j], out retroSkillWaits[j]);
+                                    }
+                                    else
+                                    {
+                                        retroSkillWaits[j] = false;
+                                    }
+                                }
+                            }
+                            else
+                            {
+                                // Old single boolean format
+                                bool.TryParse(rawWait, out bool globalWait);
+                                for (int j = 0; j < 5; j++)
+                                {
+                                    retroSkillWaits[j] = globalWait;
+                                }
+                                waitStr = string.Join(",", retroSkillWaits);
+                            }
+                        }
+                        else
+                        {
+                            for (int j = 0; j < 5; j++)
+                            {
+                                retroSkillWaits[j] = false;
+                            }
+                        }
+
+                        string freeStr = "false,false,false,false,false";
+                        if (parts.Length >= 5)
+                        {
+                            freeStr = parts[4];
+                            string[] freeParts = freeStr.Split(',');
+                            for (int j = 0; j < 5; j++)
+                            {
+                                if (j < freeParts.Length)
+                                {
+                                    bool.TryParse(freeParts[j], out retroSkillFrees[j]);
+                                }
+                                else
+                                {
+                                    retroSkillFrees[j] = false;
+                                }
+                            }
+                        }
+                        else
+                        {
+                            for (int j = 0; j < 5; j++)
+                            {
+                                retroSkillFrees[j] = false;
+                            }
+                        }
+
                         if (retroAutoskillsActive)
                         {
                             activeComboList = ParseCombo(skillsetEditCombo);
                         }
-                        AddOrUpdateSkillset(skillsetEditName, skillsetEditCombo, delStr);
+                        AddOrUpdateSkillset(skillsetEditName, skillsetEditCombo, delStr, waitStr, freeStr);
                         MelonLogger.Msg($"Imported skillset: {skillsetEditName}");
                     }
                     else
                     {
-                        MelonLogger.Error("Invalid import format. Expected 'Name|Combo|Delays' or 'Name|Combo'.");
+                        MelonLogger.Error("Invalid import format. Expected 'Name|Combo|Delays|Waits|Frees', 'Name|Combo|Delays|Waits', 'Name|Combo|Delays' or 'Name|Combo'.");
                     }
                 }
             }
@@ -1198,7 +1384,9 @@ namespace Infinity_TestMod
             if (GUI.Button(new Rect(pad + innerW - 60, curY, 60, 30), "Export", closeButtonStyle))
             {
                 string delStr = string.Join(",", retroDelayInputs);
-                skillsetImportExportText = $"{skillsetEditName}|{skillsetEditCombo}|{delStr}";
+                string waitStr = string.Join(",", retroSkillWaits);
+                string freeStr = string.Join(",", retroSkillFrees);
+                skillsetImportExportText = $"{skillsetEditName}|{skillsetEditCombo}|{delStr}|{waitStr}|{freeStr}";
                 UnityEngine.GUIUtility.systemCopyBuffer = skillsetImportExportText;
                 MelonLogger.Msg("Exported skillset copied to clipboard!");
             }
@@ -1252,17 +1440,81 @@ namespace Infinity_TestMod
                                             }
                                         }
                                     }
+                                    string waitStr = "false,false,false,false,false";
+                                    if (parts.Length >= 4)
+                                    {
+                                        string rawWait = parts[3];
+                                        if (rawWait.Contains(","))
+                                        {
+                                            waitStr = rawWait;
+                                            string[] waitParts = waitStr.Split(',');
+                                            for (int j = 0; j < 5; j++)
+                                            {
+                                                if (j < waitParts.Length)
+                                                {
+                                                    bool.TryParse(waitParts[j], out retroSkillWaits[j]);
+                                                }
+                                                else
+                                                {
+                                                    retroSkillWaits[j] = false;
+                                                }
+                                            }
+                                        }
+                                        else
+                                        {
+                                            // Old single boolean format
+                                            bool.TryParse(rawWait, out bool globalWait);
+                                            for (int j = 0; j < 5; j++)
+                                            {
+                                                retroSkillWaits[j] = globalWait;
+                                            }
+                                            waitStr = string.Join(",", retroSkillWaits);
+                                        }
+                                    }
+                                    else
+                                    {
+                                        for (int j = 0; j < 5; j++)
+                                        {
+                                            retroSkillWaits[j] = false;
+                                        }
+                                    }
+
+                                    string freeStr = "false,false,false,false,false";
+                                    if (parts.Length >= 5)
+                                    {
+                                        freeStr = parts[4];
+                                        string[] freeParts = freeStr.Split(',');
+                                        for (int j = 0; j < 5; j++)
+                                        {
+                                            if (j < freeParts.Length)
+                                            {
+                                                bool.TryParse(freeParts[j], out retroSkillFrees[j]);
+                                            }
+                                            else
+                                            {
+                                                retroSkillFrees[j] = false;
+                                            }
+                                        }
+                                    }
+                                    else
+                                    {
+                                        for (int j = 0; j < 5; j++)
+                                        {
+                                            retroSkillFrees[j] = false;
+                                        }
+                                    }
+
                                     if (retroAutoskillsActive)
                                     {
                                         activeComboList = ParseCombo(skillsetEditCombo);
                                     }
                                     skillsetImportExportText = payload;
-                                    AddOrUpdateSkillset(skillsetEditName, skillsetEditCombo, delStr);
+                                    AddOrUpdateSkillset(skillsetEditName, skillsetEditCombo, delStr, waitStr, freeStr);
                                     MelonLogger.Msg($"Imported skillset from file: {fullPath}");
                                 }
                                 else
                                 {
-                                    MelonLogger.Error("Invalid file content format. Expected Name|Combo|Delays");
+                                    MelonLogger.Error("Invalid file content format. Expected Name|Combo|Delays|Waits|Frees");
                                 }
                             }
                         }
@@ -1290,7 +1542,9 @@ namespace Infinity_TestMod
                     {
                         skillsetFileInput = System.IO.Path.GetFileName(fullPath);
                         string delStr = string.Join(",", retroDelayInputs);
-                        string payload = $"{skillsetEditName}|{skillsetEditCombo}|{delStr}";
+                        string waitStr = string.Join(",", retroSkillWaits);
+                        string freeStr = string.Join(",", retroSkillFrees);
+                        string payload = $"{skillsetEditName}|{skillsetEditCombo}|{delStr}|{waitStr}|{freeStr}";
                         System.IO.File.WriteAllText(fullPath, payload);
                         skillsetImportExportText = payload;
                         MelonLogger.Msg($"Saved skillset setup to file: {fullPath}");
@@ -1309,10 +1563,10 @@ namespace Infinity_TestMod
 
             for (int i = 0; i < 5; i++)
             {
-                GUI.Label(new Rect(pad, curY, 90, 30), GetSkillKeyName(i), labelStyle);
+                GUI.Label(new Rect(pad, curY, 80, 30), GetSkillKeyName(i), labelStyle);
                 
                 string delayStr = retroDelayInputs[i];
-                string newDelayStr = GUI.TextField(new Rect(pad + 100, curY, innerW - 100, 30), delayStr, textFieldStyle);
+                string newDelayStr = GUI.TextField(new Rect(pad + 85, curY, 50, 30), delayStr, textFieldStyle);
                 if (newDelayStr != delayStr)
                 {
                     retroDelayInputs[i] = newDelayStr;
@@ -1321,6 +1575,30 @@ namespace Infinity_TestMod
                         retroSkillDelays[i] = ms / 1000f;
                     }
                 }
+
+                bool oldWait = retroSkillWaits[i];
+                bool newWait = GUI.Toggle(new Rect(pad + 140, curY + 5, 20, 20), oldWait, "");
+                if (newWait != oldWait)
+                {
+                    retroSkillWaits[i] = newWait;
+                    if (newWait)
+                    {
+                        retroSkillFrees[i] = false;
+                    }
+                }
+                GUI.Label(new Rect(pad + 162, curY, 32, 30), "Wait", labelStyle);
+
+                bool oldFree = retroSkillFrees[i];
+                bool newFree = GUI.Toggle(new Rect(pad + 198, curY + 5, 20, 20), oldFree, "");
+                if (newFree != oldFree)
+                {
+                    retroSkillFrees[i] = newFree;
+                    if (newFree)
+                    {
+                        retroSkillWaits[i] = false;
+                    }
+                }
+                GUI.Label(new Rect(pad + 220, curY, 32, 30), "Free", labelStyle);
 
                 curY += 35f;
             }
@@ -1355,7 +1633,7 @@ namespace Infinity_TestMod
             return list;
         }
 
-        private static void AddOrUpdateSkillset(string name, string combo, string delays)
+        private static void AddOrUpdateSkillset(string name, string combo, string delays, string waits, string frees)
         {
             if (string.IsNullOrEmpty(name)) return;
             var existingIdx = savedSkillsets.FindIndex(s => s.Name.Equals(name, System.StringComparison.OrdinalIgnoreCase));
@@ -1363,6 +1641,8 @@ namespace Infinity_TestMod
             {
                 savedSkillsets[existingIdx].Combo = combo;
                 savedSkillsets[existingIdx].Delays = delays;
+                savedSkillsets[existingIdx].Waits = waits;
+                savedSkillsets[existingIdx].Frees = frees;
                 selectedSkillsetIndex = existingIdx;
             }
             else
@@ -1371,11 +1651,24 @@ namespace Infinity_TestMod
                 {
                     Name = name,
                     Combo = combo,
-                    Delays = delays
+                    Delays = delays,
+                    Waits = waits,
+                    Frees = frees
                 });
                 selectedSkillsetIndex = savedSkillsets.Count - 1;
             }
             SaveSkillsets();
+        }
+
+        private static void AddOrUpdateSkillset(string name, string combo, string delays, string waits)
+        {
+            AddOrUpdateSkillset(name, combo, delays, waits, "false,false,false,false,false");
+        }
+
+        private static void AddOrUpdateSkillset(string name, string combo, string delays, bool waitForSkill = false)
+        {
+            string waits = string.Join(",", new bool[] { waitForSkill, waitForSkill, waitForSkill, waitForSkill, waitForSkill });
+            AddOrUpdateSkillset(name, combo, delays, waits, "false,false,false,false,false");
         }
 
         private static void LoadSkillsets()
@@ -2912,6 +3205,44 @@ namespace Infinity_TestMod
 
             distance = Mathf.Min(dBar, dDot);
             return distance <= 0f;
+        }
+
+        private static bool IsSkillOnCooldown(SkillSlotButton button)
+        {
+            if (button == null) return false;
+            try
+            {
+                // Check pendingCooldown first
+                System.Reflection.FieldInfo pendingField = typeof(SkillSlotButton).GetField("pendingCooldown", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                if (pendingField != null && (bool)pendingField.GetValue(button))
+                {
+                    return true;
+                }
+
+                // Check CooldownOverlay
+                System.Reflection.FieldInfo cdField = typeof(SkillSlotButton).GetField("cooldown", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                if (cdField != null)
+                {
+                    object cdObj = cdField.GetValue(button);
+                    if (cdObj != null)
+                    {
+                        System.Reflection.MethodInfo method = cdObj.GetType().GetMethod("cooldownActive", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                        if (method != null)
+                        {
+                            return (bool)method.Invoke(cdObj, null);
+                        }
+
+                        System.Reflection.FieldInfo remainField = cdObj.GetType().GetField("cdRemain", System.Reflection.BindingFlags.Public | System.Reflection.BindingFlags.NonPublic | System.Reflection.BindingFlags.Instance);
+                        if (remainField != null)
+                        {
+                            float remain = (float)remainField.GetValue(cdObj);
+                            return remain > 0f;
+                        }
+                    }
+                }
+            }
+            catch { }
+            return false;
         }
 
         #region Win32 File Dialogs
