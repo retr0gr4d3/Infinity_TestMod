@@ -1,29 +1,7 @@
 # .sourcery.yaml
+clone_detection:
+  enabled: true
+
+# Ensure this section isn't set to 'false' or skipping your files
 refactor:
   skip: []
-
-rules: []
-
-metrics:
-  quality_threshold: 25.0
-
-github:
-  labels: []
-  ignore_labels:
-    - sourcery-ignore
-  request_review: author
-  sourcery_branch: sourcery/{original_branch}
-
-ignore:
-  - .git
-  - venv
-  - .venv
-  - node_modules
-  - vendor
-  - "*.min.js"
-  - "*.lock"
-  - "*.generated.*"
-  - dist
-  - build
-  - coverage
-  - __pycache__
