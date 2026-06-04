@@ -395,6 +395,29 @@ namespace Infinity_TestMod
                 CameraZoom.Apply();
             }
 
+            // HUD toggle cluster — vertical skills + hide UI/players/monsters/NPCs.
+            // Internally throttled so the scene scans don't run every frame.
+            try { HudToggles.Tick(); } catch (System.Exception ex) { LoggerInstance.Error($"HudToggles tick: {ex.Message}"); }
+
+            // Hotkeys for the same toggles. Single-letter binds chosen to
+            // match the original button labels (V=Vertical, U=hide UI,
+            // P=other Players, M=Monsters, N=NPCs). Guarded by
+            // IsTypingInChat so the keys are inert while a chat or any
+            // other input field is focused — otherwise typing "vampire"
+            // would flicker every toggle.
+            try
+            {
+                if (!IsTypingInChat())
+                {
+                    if (Input.GetKeyDown(KeyCode.V)) { HudToggles.VerticalSkillBar  = !HudToggles.VerticalSkillBar;  LoggerInstance.Msg($"[Hotkey] VerticalSkillBar={HudToggles.VerticalSkillBar}"); }
+                    if (Input.GetKeyDown(KeyCode.U)) { HudToggles.HideUI            = !HudToggles.HideUI;            LoggerInstance.Msg($"[Hotkey] HideUI={HudToggles.HideUI}"); }
+                    if (Input.GetKeyDown(KeyCode.P)) { HudToggles.HideOtherPlayers  = !HudToggles.HideOtherPlayers;  LoggerInstance.Msg($"[Hotkey] HideOtherPlayers={HudToggles.HideOtherPlayers}"); }
+                    if (Input.GetKeyDown(KeyCode.M)) { HudToggles.HideMonsters      = !HudToggles.HideMonsters;      LoggerInstance.Msg($"[Hotkey] HideMonsters={HudToggles.HideMonsters}"); }
+                    if (Input.GetKeyDown(KeyCode.N)) { HudToggles.HideNPCs          = !HudToggles.HideNPCs;          LoggerInstance.Msg($"[Hotkey] HideNPCs={HudToggles.HideNPCs}"); }
+                }
+            }
+            catch (System.Exception ex) { LoggerInstance.Error($"HudToggles hotkey: {ex.Message}"); }
+
             if (autoskillsActive)
             {
                 if (Time.time >= nextSkillTime)
@@ -751,6 +774,14 @@ namespace Infinity_TestMod
                 }
             }
 
+
+            // Side-by-side mode: IMGUI menu always renders when showWindow
+            // is true, regardless of native. The "Native UI" toggle just
+            // controls whether the native menu ALSO renders — it doesn't
+            // hide IMGUI. Earlier this gated IMGUI off when native was
+            // active, which violated the user's explicit side-by-side
+            // choice and left the screen blank when native failed to
+            // appear visibly.
             if (showWindow)
             {
                 if (windowStyle != null)
@@ -3867,6 +3898,32 @@ namespace Infinity_TestMod
             }
             return arr;
         }
+        // True when the user has any text input field (chat, search box,
+        // etc) focused. Used to gate single-letter hotkeys so typing in
+        // chat doesn't flip every toggle on every keypress. Covers both
+        // legacy UnityEngine.UI.InputField and TMP_InputField — the TMP
+        // check is by type name to avoid a hard reference if the game
+        // ever swaps it out.
+        public static bool IsTypingInChat()
+        {
+            try
+            {
+                var es = UnityEngine.EventSystems.EventSystem.current;
+                if (es == null) return false;
+                var sel = es.currentSelectedGameObject;
+                if (sel == null) return false;
+                if (sel.GetComponent<UnityEngine.UI.InputField>() != null) return true;
+                foreach (var c in sel.GetComponents<UnityEngine.MonoBehaviour>())
+                {
+                    if (c == null) continue;
+                    var n = c.GetType().Name;
+                    if (n == "TMP_InputField" || n == "TMPro_InputField") return true;
+                }
+            }
+            catch { }
+            return false;
+        }
+
         public static bool IsMouseOverUI()
         {
             float mouseX = Input.mousePosition.x;
