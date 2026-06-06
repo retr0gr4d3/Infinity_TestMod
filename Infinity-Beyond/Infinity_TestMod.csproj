@@ -124,6 +124,10 @@
       <HintPath>$(AqwiGameDir)\AdventureQuest Worlds Infinity_Data\Managed\Newtonsoft.Json.dll</HintPath>
       <Private>False</Private>
     </Reference>
+    <Reference Include="UnityEngine.AssetBundleModule">
+      <HintPath>$(AqwiGameDir)\AdventureQuest Worlds Infinity_Data\Managed\UnityEngine.AssetBundleModule.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
     <Reference Include="UnityEngine.AnimationModule">
       <HintPath>$(AqwiGameDir)\AdventureQuest Worlds Infinity_Data\Managed\UnityEngine.AnimationModule.dll</HintPath>
       <Private>False</Private>
@@ -154,6 +158,13 @@
     </Reference>
     <Reference Include="UnityEngine.UI">
       <HintPath>$(AqwiGameDir)\AdventureQuest Worlds Infinity_Data\Managed\UnityEngine.UI.dll</HintPath>
+      <Private>False</Private>
+    </Reference>
+    <Reference Include="UnityEngine.UIModule">
+      <!-- Canvas, CanvasGroup, CanvasRenderer live here (not in UnityEngine.UI,
+           which is the uGUI controls assembly). DragPanel needs Canvas to
+           read scaleFactor so dragging tracks the cursor on scaled canvases. -->
+      <HintPath>$(AqwiGameDir)\AdventureQuest Worlds Infinity_Data\Managed\UnityEngine.UIModule.dll</HintPath>
       <Private>False</Private>
     </Reference>
     <Reference Include="Unity.TextMeshPro">

@@ -1,7 +1,7 @@
 @echo off
 setlocal
 
-:: All paths are relative to this bat file ? works on any machine.
+:: All paths are relative to this bat file — works on any machine.
 set ROOT=%~dp0
 set SLN=%ROOT%Infinity_TestMod.sln
 set OUT=%ROOT%Infinity-Beyond\bin\Release
