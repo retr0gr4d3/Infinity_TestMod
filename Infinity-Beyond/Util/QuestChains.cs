@@ -1,10 +1,9 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using MelonLoader;
 using MelonLoader.Utils;
 using Newtonsoft.Json.Linq;
+using System;
+using System.Collections.Generic;
+using System.IO;
 
 namespace Infinity_TestMod.Util
 {
@@ -40,7 +39,7 @@ namespace Infinity_TestMod.Util
         public static IEnumerable<string> Names => All.Keys;
 
         public static List<Entry> Get(string name) =>
-            (name != null && All.TryGetValue(name, out var list)) ? list : null;
+            (name != null && All.TryGetValue(name, out List<Entry> list)) ? list : null;
 
         public static void Init()
         {
@@ -59,10 +58,10 @@ namespace Infinity_TestMod.Util
 
         static void LoadEmbedded()
         {
-            using var s = typeof(QuestChains).Assembly
+            using Stream s = typeof(QuestChains).Assembly
                 .GetManifestResourceStream("Infinity_TestMod.Data.chains.json");
             if (s == null) { MelonLogger.Warning("[QuestChains] embedded chains.json missing"); return; }
-            using var r = new StreamReader(s);
+            using StreamReader r = new(s);
             MergeFromJson(r.ReadToEnd(), source: "bootstrap");
         }
 
@@ -82,13 +81,13 @@ namespace Infinity_TestMod.Util
 
         static void MergeFromJson(string json, string source)
         {
-            var obj = JObject.Parse(json);
-            foreach (var prop in obj.Properties())
+            JObject obj = JObject.Parse(json);
+            foreach (JProperty prop in obj.Properties())
             {
                 if (prop.Name.StartsWith("_")) continue; // skip _doc and similar
                 if (prop.Value is not JArray arr) continue;
-                var entries = new List<Entry>();
-                foreach (var elem in arr)
+                List<Entry> entries = new();
+                foreach (JToken elem in arr)
                 {
                     if (elem is not JObject e) continue;
                     int qid = (int?)e["qid"] ?? 0;

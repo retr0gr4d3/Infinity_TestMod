@@ -29,7 +29,7 @@ namespace Infinity_TestMod.Util
         private static int _activeControlId = 0;
         private static HandleKind _handle = HandleKind.None;
         private static Vector2 _dragStart = Vector2.zero;
-        private static Rect _rectAtStart = new Rect();
+        private static Rect _rectAtStart = new();
         private static readonly System.Collections.Generic.HashSet<int> _userResized = new();
 
         /// <summary>True once the user has dragged a resize handle on this window. Auto-sizing draw

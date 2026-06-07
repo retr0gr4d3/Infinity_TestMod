@@ -1,9 +1,31 @@
 using HarmonyLib;
 using Infinity_TestMod.Util;
 using MelonLoader;
+using System.Collections.Generic;
 
 namespace Infinity_TestMod.Patches
 {
+    // Pet harvester. PetLoader.LoadItem reads player.Pet.{Bundle, PrefabName,
+    // Scale, OffsetX, OffsetY} directly into BundlePrefabLoader, so the spoof
+    // needs all of those to reproduce the load. Capture them on ctor.
+    [HarmonyPatch(typeof(PetLoader), MethodType.Constructor, new System.Type[] { typeof(HumanoidAvatar) })]
+    public static class PetHarvestPatch
+    {
+        public static void Postfix(HumanoidAvatar p)
+        {
+            try
+            {
+                if (p == null || p.character == null) return;
+                EquipItem item = p.character.Pet;
+                if (item == null || item.Bundle == null) return;
+                string name = (item as Item)?.Name ?? "";
+                ItemCatalog.RecordPet(item.ID, name, item.Bundle, item.PrefabName,
+                                      item.Scale, item.OffsetX, item.OffsetY);
+            }
+            catch { }
+        }
+    }
+
     // Local-only pet visual swap. PetLoader.LoadItem reads bundle, prefab
     // name, scale and offsets directly off player.Pet (no GetBundleData
     // detour like the gear loaders), so the spoof is pure field mutation
@@ -72,11 +94,11 @@ namespace Infinity_TestMod.Patches
                 if (p.character != Entity.mainPlayer) return;
                 EquipItem pet = p.character.Pet;
                 if (pet == null) return;
-                if (!ItemCatalog.TryGetPetOrMonster(TestMod.petSpoofBundle, out var cat)) return;
+                if (!ItemCatalog.TryGetPetOrMonster(TestMod.petSpoofBundle, out ItemCatalog.ItemEntry cat)) return;
 
-                var sourceBucket = ItemCatalog.Pets.ContainsKey(TestMod.petSpoofBundle)
+                Dictionary<string, ItemCatalog.ItemEntry> sourceBucket = ItemCatalog.Pets.ContainsKey(TestMod.petSpoofBundle)
                     ? ItemCatalog.Pets : ItemCatalog.Monsters;
-                var spoofedBundle = SpoofBundleBuilder.Build(TestMod.petSpoofBundle, sourceBucket, pet.Bundle, pet.Bundle);
+                AssetBundleData spoofedBundle = BundleBuilder.Build(TestMod.petSpoofBundle, sourceBucket, pet.Bundle, pet.Bundle);
                 PetSpoofState.Apply(pet, spoofedBundle, cat.prefab, cat.scale, cat.offX, cat.offY);
             }
             catch (System.Exception ex)

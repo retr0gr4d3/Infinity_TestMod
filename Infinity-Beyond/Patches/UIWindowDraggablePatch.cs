@@ -1,8 +1,8 @@
-using System.Collections.Generic;
-using System.Linq;
-using System.Reflection;
 using HarmonyLib;
 using Infinity_TestMod.Util;
+using System;
+using System.Collections.Generic;
+using System.Reflection;
 
 namespace Infinity_TestMod.Patches
 {
@@ -34,7 +34,7 @@ namespace Infinity_TestMod.Patches
     [HarmonyPatch]
     public static class UIWindowDraggablePatch
     {
-        private static readonly HashSet<string> ExcludedTypeNames = new HashSet<string>
+        private static readonly HashSet<string> ExcludedTypeNames = new()
         {
             "ItemPreview",
             "ItemPreviewNew",
@@ -47,16 +47,16 @@ namespace Infinity_TestMod.Patches
         // one if it has one, otherwise the inherited base method).
         private static IEnumerable<MethodBase> TargetMethods()
         {
-            var seen = new HashSet<MethodBase>();
+            HashSet<MethodBase> seen = new();
             const BindingFlags InstanceAll = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
-            foreach (var t in typeof(UIWindow).Assembly.GetTypes())
+            foreach (Type t in typeof(UIWindow).Assembly.GetTypes())
             {
                 if (t == null) continue;
                 if (!typeof(UIWindow).IsAssignableFrom(t)) continue;
                 // Walk up the chain to find the most-derived declared OnEnable
                 // for THIS type. GetMethod alone gives us the inherited method
                 // when nothing is declared, which is exactly what we want.
-                var m = t.GetMethod("OnEnable", InstanceAll, null, System.Type.EmptyTypes, null);
+                MethodInfo m = t.GetMethod("OnEnable", InstanceAll, null, System.Type.EmptyTypes, null);
                 if (m == null) continue;
                 if (seen.Add(m)) yield return m;
             }
@@ -65,7 +65,7 @@ namespace Infinity_TestMod.Patches
         private static void Postfix(UIWindow __instance)
         {
             if (__instance == null) return;
-            var typeName = __instance.GetType().Name;
+            string typeName = __instance.GetType().Name;
             if (ExcludedTypeNames.Contains(typeName)) return;
             DragPanel.AttachToWindowRoot(__instance, $"UIWindowDraggable:{typeName}");
         }

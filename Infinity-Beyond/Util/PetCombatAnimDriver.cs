@@ -1,8 +1,7 @@
+using MelonLoader;
 using System.Collections.Generic;
 using UnityEngine;
-using UnityEngine.Animations;
 using UnityEngine.Playables;
-using MelonLoader;
 
 namespace Infinity_TestMod.Util
 {
@@ -51,7 +50,7 @@ namespace Infinity_TestMod.Util
                 if (_anim != null && _anim.runtimeAnimatorController != null)
                 {
                     _clips = new List<AnimationClip>();
-                    foreach (var c in _anim.runtimeAnimatorController.animationClips)
+                    foreach (AnimationClip c in _anim.runtimeAnimatorController.animationClips)
                     {
                         if (c == null || string.IsNullOrEmpty(c.name)) continue;
                         // Skip stun + death clips — they freeze the rig or
@@ -78,7 +77,7 @@ namespace Infinity_TestMod.Util
                     if (_clips.Count > 1 && idx == _lastClipIdx)
                         idx = (idx + 1) % _clips.Count;
                     _lastClipIdx = idx;
-                    var clip = _clips[idx];
+                    AnimationClip clip = _clips[idx];
                     PlayClip(clip);
                     // clip.length is 0 for static poses — hold for a fixed
                     // beat so we don't churn at frame rate.

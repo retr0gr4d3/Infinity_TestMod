@@ -1,11 +1,11 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using MelonLoader;
 using MelonLoader.Utils;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 
 namespace Infinity_TestMod.Util
 {
@@ -48,12 +48,12 @@ namespace Infinity_TestMod.Util
                 _filePath = Path.Combine(dir, "music.json");
                 if (File.Exists(_filePath))
                 {
-                    var arr = JArray.Parse(File.ReadAllText(_filePath));
-                    foreach (var t in arr)
+                    JArray arr = JArray.Parse(File.ReadAllText(_filePath));
+                    foreach (JToken t in arr)
                     {
                         if (t is JObject e)
                         {
-                            var entry = e.ToObject<TrackEntry>();
+                            TrackEntry entry = e.ToObject<TrackEntry>();
                             if (entry != null && entry.id > 0)
                                 Tracks[entry.id] = entry;
                         }
@@ -90,7 +90,7 @@ namespace Infinity_TestMod.Util
                 {
                     // Only persist entries the harvest has filled in —
                     // placeholders (empty name + zero length) are synthetic.
-                    var payload = Tracks.Values
+                    List<TrackEntry> payload = Tracks.Values
                         .Where(e => !string.IsNullOrEmpty(e.name) || e.length > 0f)
                         .OrderBy(e => e.id)
                         .ToList();
@@ -110,7 +110,7 @@ namespace Infinity_TestMod.Util
             if (id <= 0) return;
             lock (_lock)
             {
-                if (Tracks.TryGetValue(id, out var existing))
+                if (Tracks.TryGetValue(id, out TrackEntry existing))
                 {
                     // Sticky-name: don't blank an already-named entry.
                     if (string.IsNullOrEmpty(name) && !string.IsNullOrEmpty(existing.name))

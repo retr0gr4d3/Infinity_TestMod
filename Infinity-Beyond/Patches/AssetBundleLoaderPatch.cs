@@ -1,8 +1,8 @@
-using System;
-using System.IO;
 using HarmonyLib;
 using MelonLoader;
 using MelonLoader.Utils;
+using System;
+using System.IO;
 using UnityEngine;
 
 namespace Infinity_TestMod.Patches
@@ -29,7 +29,7 @@ namespace Infinity_TestMod.Patches
         {
             try
             {
-                var data = __instance?.BundleData;
+                AssetBundleData data = __instance?.BundleData;
                 string fn = data?.Filename;
                 if (string.IsNullOrEmpty(fn)) return true;
                 if (!fn.StartsWith(Prefix_, StringComparison.OrdinalIgnoreCase)) return true;

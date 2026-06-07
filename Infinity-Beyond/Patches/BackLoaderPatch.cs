@@ -22,7 +22,7 @@ namespace Infinity_TestMod.Patches
                 if (avt == null || avt.character == null) return;
                 if (avt.character != Entity.mainPlayer) return;
 
-                __result = SpoofBundleBuilder.Build(TestMod.backSpoofBundle, ItemCatalog.Backs, avt.character.Back?.Bundle, __result);
+                __result = BundleBuilder.Build(TestMod.backSpoofBundle, ItemCatalog.Backs, avt.character.Back?.Bundle, __result);
             }
             catch (System.Exception ex)
             {

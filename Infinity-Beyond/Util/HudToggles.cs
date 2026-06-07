@@ -1,7 +1,7 @@
+using MelonLoader;
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-using MelonLoader;
 using UnityEngine;
 
 namespace Infinity_TestMod.Util
@@ -66,10 +66,10 @@ namespace Infinity_TestMod.Util
             if (_auxFieldsResolved) return _entityAuxFields;
             _auxFieldsResolved = true;
             const BindingFlags Flags = BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
-            var list = new List<FieldInfo>();
-            foreach (var name in EntityAuxFieldNames)
+            List<FieldInfo> list = new();
+            foreach (string name in EntityAuxFieldNames)
             {
-                var f = typeof(Entity).GetField(name, Flags);
+                FieldInfo f = typeof(Entity).GetField(name, Flags);
                 if (f != null) list.Add(f);
                 else MelonLogger.Warning($"[HudToggles] Entity field not found: {name}");
             }
@@ -87,8 +87,8 @@ namespace Infinity_TestMod.Util
         {
             try
             {
-                var all = Resources.FindObjectsOfTypeAll<Canvas>();
-                foreach (var c in all)
+                Canvas[] all = Resources.FindObjectsOfTypeAll<Canvas>();
+                foreach (Canvas c in all)
                 {
                     if (c == null) continue;
                     // Scene-only: prefabs in Resources have an invalid scene
@@ -108,7 +108,7 @@ namespace Infinity_TestMod.Util
 
         private static void RestoreHideUI()
         {
-            foreach (var kv in _canvasOriginalEnabled)
+            foreach (KeyValuePair<Canvas, bool> kv in _canvasOriginalEnabled)
             {
                 if (kv.Key != null) kv.Key.enabled = kv.Value;
             }
@@ -132,20 +132,20 @@ namespace Infinity_TestMod.Util
                 // Simpler than per-toggle bookkeeping and lets us cope with rigs
                 // being recreated (area change, costume swap) — old refs become
                 // null and get dropped naturally.
-                foreach (var kv in _rendererOriginal)
+                foreach (KeyValuePair<Renderer, bool> kv in _rendererOriginal)
                 {
                     if (kv.Key != null) kv.Key.enabled = kv.Value;
                 }
                 _rendererOriginal.Clear();
-                foreach (var kv in _entityAuxCanvasOriginal)
+                foreach (KeyValuePair<Canvas, bool> kv in _entityAuxCanvasOriginal)
                 {
                     if (kv.Key != null) kv.Key.enabled = kv.Value;
                 }
                 _entityAuxCanvasOriginal.Clear();
 
                 if (HideOtherPlayers) HideOtherPlayersImpl();
-                if (HideMonsters)     HideMonstersImpl();
-                if (HideNPCs)         HideNPCsImpl();
+                if (HideMonsters) HideMonstersImpl();
+                if (HideNPCs) HideNPCsImpl();
             }
             catch (Exception ex)
             {
@@ -158,8 +158,8 @@ namespace Infinity_TestMod.Util
             object mainPlayer = null;
             try { mainPlayer = Entity.mainPlayer; } catch { }
 
-            var ctrls = Resources.FindObjectsOfTypeAll<PlayerAnimationControl>();
-            foreach (var ctrl in ctrls)
+            PlayerAnimationControl[] ctrls = Resources.FindObjectsOfTypeAll<PlayerAnimationControl>();
+            foreach (PlayerAnimationControl ctrl in ctrls)
             {
                 if (ctrl == null) continue;
                 if (!ctrl.gameObject.scene.IsValid()) continue;
@@ -178,9 +178,9 @@ namespace Infinity_TestMod.Util
             // M ended up no-op. NPCs share the MonsterAnimationControl rig
             // so M now hides them too — that's an accepted trade-off; N can
             // still hide NPCs independently when M is off.
-            var ctrls = Resources.FindObjectsOfTypeAll<MonsterAnimationControl>();
+            MonsterAnimationControl[] ctrls = Resources.FindObjectsOfTypeAll<MonsterAnimationControl>();
             int total = 0, hit = 0;
-            foreach (var ctrl in ctrls)
+            foreach (MonsterAnimationControl ctrl in ctrls)
             {
                 total++;
                 if (ctrl == null) continue;
@@ -194,9 +194,9 @@ namespace Infinity_TestMod.Util
 
         private static void HideNPCsImpl()
         {
-            var heads = Resources.FindObjectsOfTypeAll<NPCQuestHead>();
+            NPCQuestHead[] heads = Resources.FindObjectsOfTypeAll<NPCQuestHead>();
             int total = 0, inScene = 0, uiSkipped = 0, eacHits = 0, fallback = 0;
-            foreach (var head in heads)
+            foreach (NPCQuestHead head in heads)
             {
                 total++;
                 if (head == null) continue;
@@ -214,7 +214,7 @@ namespace Infinity_TestMod.Util
                 // which is usually a child marker pinned above the rig
                 // root. The previous topmost-ancestor walk hit the scene
                 // root and blacked out the whole world.
-                var eac = head.GetComponentInParent<EntityAnimationControl>();
+                EntityAnimationControl eac = head.GetComponentInParent<EntityAnimationControl>();
                 GameObject rigGo;
                 object character = null;
                 if (eac != null)
@@ -254,8 +254,8 @@ namespace Infinity_TestMod.Util
         private static void HideEntityAuxiliaries(object entity)
         {
             if (entity == null) return;
-            var fields = ResolveAuxFields();
-            foreach (var f in fields)
+            FieldInfo[] fields = ResolveAuxFields();
+            foreach (FieldInfo f in fields)
             {
                 GameObject go;
                 try { go = f.GetValue(entity) as GameObject; }
@@ -265,7 +265,7 @@ namespace Infinity_TestMod.Util
                 // Nameplates render through Canvas, not Renderer. Disable any
                 // Canvases under the aux GO too — sprite-based popups also
                 // sometimes wrap their visuals in a Canvas for sorting.
-                foreach (var c in go.GetComponentsInChildren<Canvas>(includeInactive: true))
+                foreach (Canvas c in go.GetComponentsInChildren<Canvas>(includeInactive: true))
                 {
                     if (c == null) continue;
                     if (_entityAuxCanvasOriginal.ContainsKey(c)) continue;
@@ -277,8 +277,8 @@ namespace Infinity_TestMod.Util
 
         private static void HideRenderersUnder(GameObject root)
         {
-            var renderers = root.GetComponentsInChildren<Renderer>(includeInactive: true);
-            foreach (var r in renderers)
+            Renderer[] renderers = root.GetComponentsInChildren<Renderer>(includeInactive: true);
+            foreach (Renderer r in renderers)
             {
                 if (r == null) continue;
                 if (_rendererOriginal.ContainsKey(r)) continue;
@@ -311,8 +311,8 @@ namespace Infinity_TestMod.Util
             try
             {
                 if (UISkillSlots.Instance == null) return;
-                var root = UISkillSlots.Instance.transform;
-                var rect = root as RectTransform;
+                Transform root = UISkillSlots.Instance.transform;
+                RectTransform rect = root as RectTransform;
 
                 if (VerticalSkillBar && !_skillsRotated)
                 {
@@ -365,7 +365,7 @@ namespace Infinity_TestMod.Util
                         rect.pivot = _skillsOriginalPivot;
                         rect.anchoredPosition = _skillsOriginalAnchoredPos;
                     }
-                    foreach (var c in _counterRotatedChildren)
+                    foreach (Transform c in _counterRotatedChildren)
                     {
                         if (c != null) c.localRotation = Quaternion.identity;
                     }
@@ -393,13 +393,13 @@ namespace Infinity_TestMod.Util
                 if (_canvasOriginalEnabled.Count > 0) RestoreHideUI();
                 if (_rendererOriginal.Count > 0)
                 {
-                    foreach (var kv in _rendererOriginal)
+                    foreach (KeyValuePair<Renderer, bool> kv in _rendererOriginal)
                         if (kv.Key != null) kv.Key.enabled = kv.Value;
                     _rendererOriginal.Clear();
                 }
                 if (_entityAuxCanvasOriginal.Count > 0)
                 {
-                    foreach (var kv in _entityAuxCanvasOriginal)
+                    foreach (KeyValuePair<Canvas, bool> kv in _entityAuxCanvasOriginal)
                         if (kv.Key != null) kv.Key.enabled = kv.Value;
                     _entityAuxCanvasOriginal.Clear();
                 }

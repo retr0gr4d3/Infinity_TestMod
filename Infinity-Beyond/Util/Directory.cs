@@ -1,11 +1,11 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using MelonLoader;
 using MelonLoader.Utils;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 
 namespace Infinity_TestMod.Util
 {
@@ -97,14 +97,14 @@ namespace Infinity_TestMod.Util
         public static void RecordQuest(int qid, JObject qdef)
         {
             if (qid <= 0 || qdef == null) return;
-            var entry = new QuestEntry
+            QuestEntry entry = new()
             {
                 name = (string)qdef["Name"],
                 storyline = (string)(qdef["storylineData"] is JObject sd ? sd["Name"] : null),
             };
             lock (_lock)
             {
-                if (Quests.TryGetValue(qid, out var existing)
+                if (Quests.TryGetValue(qid, out QuestEntry existing)
                     && existing.name == entry.name && existing.storyline == entry.storyline)
                     return; // no change
                 Quests[qid] = entry;
@@ -118,8 +118,8 @@ namespace Infinity_TestMod.Util
             if (shop == null) return;
             int? sid = (int?)shop["shopID"];
             if (sid == null || sid.Value <= 0) return;
-            var items = shop["items"] as JArray;
-            var entry = new ShopEntry
+            JArray items = shop["items"] as JArray;
+            ShopEntry entry = new()
             {
                 name = (string)shop["Name"],
                 location = (string)shop["Location"],
@@ -127,7 +127,7 @@ namespace Infinity_TestMod.Util
             };
             lock (_lock)
             {
-                if (Shops.TryGetValue(sid.Value, out var existing)
+                if (Shops.TryGetValue(sid.Value, out ShopEntry existing)
                     && existing.name == entry.name && existing.item_count == entry.item_count)
                     return;
                 Shops[sid.Value] = entry;
@@ -141,20 +141,20 @@ namespace Infinity_TestMod.Util
         {
             // Resource name follows csproj layout: namespace + folder + file
             string resName = $"Infinity_TestMod.Data.{fileName}";
-            using var s = typeof(Directory).Assembly.GetManifestResourceStream(resName);
+            using Stream s = typeof(Directory).Assembly.GetManifestResourceStream(resName);
             if (s == null)
             {
                 MelonLogger.Warning($"[Directory] embedded resource missing: {resName}");
                 return;
             }
-            using var r = new StreamReader(s);
+            using StreamReader r = new(s);
             apply(r.ReadToEnd());
         }
 
         static void LoadQuestsJson(string json)
         {
-            var obj = JObject.Parse(json);
-            foreach (var prop in obj.Properties())
+            JObject obj = JObject.Parse(json);
+            foreach (JProperty prop in obj.Properties())
             {
                 if (!int.TryParse(prop.Name, out int qid)) continue;
                 Quests[qid] = prop.Value.ToObject<QuestEntry>();
@@ -163,8 +163,8 @@ namespace Infinity_TestMod.Util
 
         static void LoadShopsJson(string json)
         {
-            var obj = JObject.Parse(json);
-            foreach (var prop in obj.Properties())
+            JObject obj = JObject.Parse(json);
+            foreach (JProperty prop in obj.Properties())
             {
                 if (!int.TryParse(prop.Name, out int sid)) continue;
                 Shops[sid] = prop.Value.ToObject<ShopEntry>();
@@ -173,10 +173,10 @@ namespace Infinity_TestMod.Util
 
         static void LoadLive(string path)
         {
-            var obj = JObject.Parse(File.ReadAllText(path));
+            JObject obj = JObject.Parse(File.ReadAllText(path));
             if (obj["quests"] is JObject qs)
             {
-                foreach (var p in qs.Properties())
+                foreach (JProperty p in qs.Properties())
                 {
                     if (int.TryParse(p.Name, out int qid))
                         Quests[qid] = p.Value.ToObject<QuestEntry>();
@@ -184,7 +184,7 @@ namespace Infinity_TestMod.Util
             }
             if (obj["shops"] is JObject ss)
             {
-                foreach (var p in ss.Properties())
+                foreach (JProperty p in ss.Properties())
                 {
                     if (int.TryParse(p.Name, out int sid))
                         Shops[sid] = p.Value.ToObject<ShopEntry>();

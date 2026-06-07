@@ -3,6 +3,27 @@ using Infinity_TestMod.Util;
 
 namespace Infinity_TestMod.Patches
 {
+    // Mirror of ArmorHarvestPatch for the Head slot. HelmLoader's constructor
+    // pulls from player.Helm (when shown) or falls back to the character's
+    // customization hair bundle. We only catalog the equipped Helm — hair
+    // bundles aren't useful as spoof targets.
+    [HarmonyPatch(typeof(HelmLoader), MethodType.Constructor, new System.Type[] { typeof(HumanoidAvatar) })]
+    public static class HelmHarvestPatch
+    {
+        public static void Postfix(HumanoidAvatar p)
+        {
+            try
+            {
+                if (p == null || p.character == null) return;
+                EquipItem item = p.character.Helm;
+                if (item == null || item.Bundle == null) return;
+                string name = (item as Item)?.Name ?? "";
+                ItemCatalog.RecordHelm(item.ID, name, item.Bundle, item.PrefabName);
+            }
+            catch { }
+        }
+    }
+
     // Local-only helm visual swap. HelmLoader caches BundleData in its
     // constructor; GetBundleData returns the cache. Receiver (HumanoidAvatar
     // .onBundleLoaded) resolves the prefab as the hardcoded "HelmGO" string,
@@ -23,7 +44,7 @@ namespace Infinity_TestMod.Patches
                 if (avt == null || avt.character == null) return;
                 if (avt.character != Entity.mainPlayer) return;
 
-                __result = SpoofBundleBuilder.Build(TestMod.helmSpoofBundle, ItemCatalog.Helms, avt.character.Helm?.Bundle, __result);
+                __result = BundleBuilder.Build(TestMod.helmSpoofBundle, ItemCatalog.Helms, avt.character.Helm?.Bundle, __result);
             }
             catch (System.Exception ex)
             {

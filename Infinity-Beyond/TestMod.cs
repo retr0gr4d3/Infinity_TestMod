@@ -1,14 +1,13 @@
-using MelonLoader;
-using System.Reflection;
-using UnityEngine;
 using Infinity_TestMod.Patches;
 using Infinity_TestMod.Util;
+using MelonLoader;
+using MelonLoader.Utils;
+using Newtonsoft.Json.Linq;
 using System.Collections.Generic;
 using System.Linq;
-using Newtonsoft.Json;
-using Newtonsoft.Json.Linq;
-using MelonLoader.Utils;
-
+using System.Reflection;
+using UnityEngine;
+using UnityEngine.EventSystems;
 
 namespace Infinity_TestMod
 {
@@ -120,27 +119,27 @@ namespace Infinity_TestMod
                 // ClassNodes shape (per ResponseSkillForge "init"):
                 //   { "<Display Name>": { "ID": "<n>", "Skills": { "<slot>": <skillId>, ... } }, ... }
                 // Empty Skills is fine — SelectClass just iterates and does nothing.
-                var classes = new JObject
+                JObject classes = new()
                 {
                     ["Stub: Dragonslayer"] = new JObject { ["ID"] = "101", ["Skills"] = new JObject() },
                     ["Stub: Necromancer"] = new JObject { ["ID"] = "102", ["Skills"] = new JObject() },
-                    ["Stub: Pyromancer"]  = new JObject { ["ID"] = "103", ["Skills"] = new JObject() },
+                    ["Stub: Pyromancer"] = new JObject { ["ID"] = "103", ["Skills"] = new JObject() },
                 };
                 CharacterClass.ClassNodes = classes;
                 CharacterClass.SkillNodes = new System.Collections.Generic.Dictionary<string, JObject>
                 {
-                    ["headers"]      = new JObject(),
-                    ["nodes"]        = new JObject(),
-                    ["helpers"]      = new JObject(),
+                    ["headers"] = new JObject(),
+                    ["nodes"] = new JObject(),
+                    ["helpers"] = new JObject(),
                     ["conditionals"] = new JObject(),
-                    ["activators"]   = new JObject(),
+                    ["activators"] = new JObject(),
                 };
                 // PerformSave's Editing branch accesses SkillData[SelectedSkill].
                 // When the user clicks Save on a stub class without ever
                 // selecting a real skill, SelectedSkill is 0 — so we seed
                 // a placeholder at id 0 to avoid KeyNotFoundException.
                 // The request still goes out to the server (and gets dropped).
-                var stubSkill = new Skill(
+                Skill stubSkill = new(
                     id: 0,
                     action: Skill.ActionType.Regular,
                     name: "Stub Skill",
@@ -231,7 +230,7 @@ namespace Infinity_TestMod
         // QuestRunner: end-to-end automation. Single instance, ticked from
         // OnUpdate so all game-side calls (target setting, request sends)
         // stay on the Unity main thread.
-        public static QuestRunner questRunner = new QuestRunner();
+        public static QuestRunner questRunner = new();
         public static bool showQuestRunnerWindow = false;
         public static Rect questRunnerWindowRect = new(20, 660, 640, 480);
         private static string questRunnerIdInput = "1";
@@ -252,7 +251,7 @@ namespace Infinity_TestMod
         private static bool _showChainDropdown = false;
         private static Vector2 _chainDropdownScroll = Vector2.zero;
         private static ChainEditState _chainEditState = null;
-        private static Rect _chainEditorWindowRect = new Rect(680, 200, 540, 460);
+        private static Rect _chainEditorWindowRect = new(680, 200, 540, 460);
         private static string receiverJsonInput = "{\n  \"Cmd\": \"\",\n  \"Params\": {}\n}";
         private static Vector2 receiverScrollPosition = Vector2.zero;
         private static System.Reflection.MethodInfo _wrapAndQueueResponseMethod = null;
@@ -349,7 +348,7 @@ namespace Infinity_TestMod
             _skillsetFilePath = System.IO.Path.Combine(userDir, "skillsets.json");
             LoadSkillsets();
 
-            var harmony = new HarmonyLib.Harmony(nameof(TestMod));
+            HarmonyLib.Harmony harmony = new(nameof(TestMod));
             harmony.PatchAll();
             LoggerInstance.Msg("Harmony patches applied!");
             GenerateTextures();
@@ -409,11 +408,11 @@ namespace Infinity_TestMod
             {
                 if (!IsTypingInChat())
                 {
-                    if (Input.GetKeyDown(KeyCode.V)) { HudToggles.VerticalSkillBar  = !HudToggles.VerticalSkillBar;  LoggerInstance.Msg($"[Hotkey] VerticalSkillBar={HudToggles.VerticalSkillBar}"); }
-                    if (Input.GetKeyDown(KeyCode.U)) { HudToggles.HideUI            = !HudToggles.HideUI;            LoggerInstance.Msg($"[Hotkey] HideUI={HudToggles.HideUI}"); }
-                    if (Input.GetKeyDown(KeyCode.P)) { HudToggles.HideOtherPlayers  = !HudToggles.HideOtherPlayers;  LoggerInstance.Msg($"[Hotkey] HideOtherPlayers={HudToggles.HideOtherPlayers}"); }
-                    if (Input.GetKeyDown(KeyCode.M)) { HudToggles.HideMonsters      = !HudToggles.HideMonsters;      LoggerInstance.Msg($"[Hotkey] HideMonsters={HudToggles.HideMonsters}"); }
-                    if (Input.GetKeyDown(KeyCode.N)) { HudToggles.HideNPCs          = !HudToggles.HideNPCs;          LoggerInstance.Msg($"[Hotkey] HideNPCs={HudToggles.HideNPCs}"); }
+                    if (Input.GetKeyDown(KeyCode.V)) { HudToggles.VerticalSkillBar = !HudToggles.VerticalSkillBar; LoggerInstance.Msg($"[Hotkey] VerticalSkillBar={HudToggles.VerticalSkillBar}"); }
+                    if (Input.GetKeyDown(KeyCode.U)) { HudToggles.HideUI = !HudToggles.HideUI; LoggerInstance.Msg($"[Hotkey] HideUI={HudToggles.HideUI}"); }
+                    if (Input.GetKeyDown(KeyCode.P)) { HudToggles.HideOtherPlayers = !HudToggles.HideOtherPlayers; LoggerInstance.Msg($"[Hotkey] HideOtherPlayers={HudToggles.HideOtherPlayers}"); }
+                    if (Input.GetKeyDown(KeyCode.M)) { HudToggles.HideMonsters = !HudToggles.HideMonsters; LoggerInstance.Msg($"[Hotkey] HideMonsters={HudToggles.HideMonsters}"); }
+                    if (Input.GetKeyDown(KeyCode.N)) { HudToggles.HideNPCs = !HudToggles.HideNPCs; LoggerInstance.Msg($"[Hotkey] HideNPCs={HudToggles.HideNPCs}"); }
                 }
             }
             catch (System.Exception ex) { LoggerInstance.Error($"HudToggles hotkey: {ex.Message}"); }
@@ -541,7 +540,7 @@ namespace Infinity_TestMod
                                     slotBtn.UseSkill(false);
                                     LoggerInstance.Msg($"Retro Autoskill casted free slot: {freeCastSlot}");
                                     lastCastWasFree = true;
-                                    
+
                                     float delay = 1f;
                                     if (retroSkillDelays.ContainsKey(freeCastSlot))
                                     {
@@ -557,7 +556,7 @@ namespace Infinity_TestMod
                             }
                         }
 
-                        var combo = activeComboList.Count > 0 ? activeComboList : new System.Collections.Generic.List<int>() { 0, 1, 2, 3, 4 };
+                        List<int> combo = activeComboList.Count > 0 ? activeComboList : new System.Collections.Generic.List<int>() { 0, 1, 2, 3, 4 };
                         if (combo.Count > 0)
                         {
                             int targetSkillSlot = -1;
@@ -661,9 +660,9 @@ namespace Infinity_TestMod
                 buttonBgTexture = CreateThemedButtonBgTexture(defaultBorder);
                 buttonBgHoverTexture = CreateThemedButtonBgTexture(hoverBorder);
 
-                 separatorTexture = new Texture2D(1, 1);
-                 separatorTexture.SetPixel(0, 0, new Color(0.08f, 0.08f, 0.08f, 1f));
-                 separatorTexture.Apply();
+                separatorTexture = new Texture2D(1, 1);
+                separatorTexture.SetPixel(0, 0, new Color(0.08f, 0.08f, 0.08f, 1f));
+                separatorTexture.Apply();
 
                 LoggerInstance.Msg("Generated UI textures.");
             }
@@ -961,6 +960,21 @@ namespace Infinity_TestMod
             }
         }
 
+        private float DrawSeparator(float y)
+        {
+            if (separatorTexture != null)
+            {
+                y += 6f;
+                GUI.DrawTexture(new Rect(20, y, 260, 2), separatorTexture);
+                y += 2f + 6f;
+                return y;
+            }
+            else
+            {
+                return y + 10f;
+            }
+        }
+
         private void DrawWindow(int windowID)
         {
             float contentWidth = windowRect.width - 40f;  // -20px padding each side
@@ -1012,16 +1026,7 @@ namespace Infinity_TestMod
             }
             curY += 35f;
 
-            if (separatorTexture != null)
-            {
-                curY += 6f;
-                GUI.DrawTexture(new Rect(20, curY, 260, 2), separatorTexture);
-                curY += 2f + 6f;
-            }
-            else
-            {
-                curY += 10f;
-            }
+            curY = DrawSeparator(curY);
 
             // Section 2: Loaders
             GUI.Label(new Rect(20, curY, 260, 20), "<b>Loaders</b>", labelStyle);
@@ -1040,16 +1045,7 @@ namespace Infinity_TestMod
             }
             curY += 35f;
 
-            if (separatorTexture != null)
-            {
-                curY += 6f;
-                GUI.DrawTexture(new Rect(20, curY, 260, 2), separatorTexture);
-                curY += 2f + 6f;
-            }
-            else
-            {
-                curY += 10f;
-            }
+            curY = DrawSeparator(curY);
 
             // Section 3: Autoskills
             GUI.Label(new Rect(20, curY, 260, 20), "<b>Autoskills</b>", labelStyle);
@@ -1087,16 +1083,7 @@ namespace Infinity_TestMod
             }
             curY += 35f;
 
-            if (separatorTexture != null)
-            {
-                curY += 6f;
-                GUI.DrawTexture(new Rect(20, curY, 260, 2), separatorTexture);
-                curY += 2f + 6f;
-            }
-            else
-            {
-                curY += 10f;
-            }
+            curY = DrawSeparator(curY);
 
             // Section 4: Packets
             GUI.Label(new Rect(20, curY, 260, 20), "<b>Packets</b>", labelStyle);
@@ -1128,16 +1115,7 @@ namespace Infinity_TestMod
             }
             curY += 35f;
 
-            if (separatorTexture != null)
-            {
-                curY += 6f;
-                GUI.DrawTexture(new Rect(20, curY, 260, 2), separatorTexture);
-                curY += 2f + 6f;
-            }
-            else
-            {
-                curY += 10f;
-            }
+            curY = DrawSeparator(curY);
 
             // Section 5: Automation
             GUI.Label(new Rect(20, curY, 260, 20), "<b>Automation</b>", labelStyle);
@@ -1150,16 +1128,7 @@ namespace Infinity_TestMod
             }
             curY += 35f;
 
-            if (separatorTexture != null)
-            {
-                curY += 6f;
-                GUI.DrawTexture(new Rect(20, curY, 260, 2), separatorTexture);
-                curY += 2f + 6f;
-            }
-            else
-            {
-                curY += 10f;
-            }
+            curY = DrawSeparator(curY);
 
             // Section 6: Spoofers — name, gear, future cosmetic-only tweaks.
             GUI.Label(new Rect(20, curY, 260, 20), "<b>Spoofers</b>", labelStyle);
@@ -1178,16 +1147,7 @@ namespace Infinity_TestMod
             }
             curY += 35f;
 
-            if (separatorTexture != null)
-            {
-                curY += 6f;
-                GUI.DrawTexture(new Rect(20, curY, 260, 2), separatorTexture);
-                curY += 2f + 6f;
-            }
-            else
-            {
-                curY += 10f;
-            }
+            curY = DrawSeparator(curY);
 
             // Section 7: Retro Tests
             GUI.Label(new Rect(20, curY, 260, 20), "<b>Retro Tests</b>", labelStyle);
@@ -1200,16 +1160,7 @@ namespace Infinity_TestMod
             }
             curY += 35f;
 
-            if (separatorTexture != null)
-            {
-                curY += 6f;
-                GUI.DrawTexture(new Rect(20, curY, 260, 2), separatorTexture);
-                curY += 2f + 6f;
-            }
-            else
-            {
-                curY += 10f;
-            }
+            curY = DrawSeparator(curY);
 
             // Section 8: View — camera zoom multiplier.
             GUI.Label(new Rect(20, curY, 260, 20), $"<b>View</b>  <size=11>Zoom: {Util.CameraZoom.Multiplier:0.00}x</size>", labelStyle);
@@ -1227,16 +1178,7 @@ namespace Infinity_TestMod
             }
             curY += 30f;
 
-            if (separatorTexture != null)
-            {
-                curY += 6f;
-                GUI.DrawTexture(new Rect(20, curY, 260, 2), separatorTexture);
-                curY += 2f + 6f;
-            }
-            else
-            {
-                curY += 10f;
-            }
+            curY = DrawSeparator(curY);
 
             // Section 9: Cutscenes — auto-skip toggle + manual skip.
             // Skip Now is also useful when the toggle is off and you just
@@ -1254,7 +1196,7 @@ namespace Infinity_TestMod
             {
                 try
                 {
-                    var mgr = Dialogger_Manager.instance;
+                    Dialogger_Manager mgr = Dialogger_Manager.instance;
                     if (mgr != null)
                     {
                         mgr.EndPressed();
@@ -1418,7 +1360,7 @@ namespace Infinity_TestMod
 
             float scrollHeight = 90f;
             GUI.Box(new Rect(pad, curY, innerW, scrollHeight), "", GUI.skin.box);
-            
+
             float listHeight = Mathf.Max(scrollHeight - 10f, savedSkillsets.Count * 25f);
             retroSkillsetsScroll = GUI.BeginScrollView(
                 new Rect(pad, curY, innerW, scrollHeight),
@@ -1441,7 +1383,7 @@ namespace Infinity_TestMod
                     selectedSkillsetIndex = i;
                     skillsetEditName = savedSkillsets[i].Name;
                     skillsetEditCombo = savedSkillsets[i].Combo;
-                    
+
                     // Parse waits
                     if (!string.IsNullOrEmpty(savedSkillsets[i].Waits))
                     {
@@ -1491,7 +1433,7 @@ namespace Infinity_TestMod
                             retroSkillFrees[j] = false;
                         }
                     }
-                    
+
                     // Parse delays
                     string[] delParts = (savedSkillsets[i].Delays ?? "1000,1000,1000,1000,1000").Split(',');
                     for (int j = 0; j < 5; j++)
@@ -1527,7 +1469,7 @@ namespace Infinity_TestMod
                     string delStr = string.Join(",", retroDelayInputs);
                     string waitStr = string.Join(",", retroSkillWaits);
                     string freeStr = string.Join(",", retroSkillFrees);
-                    var existingIdx = savedSkillsets.FindIndex(s => s.Name.Equals(skillsetEditName, System.StringComparison.OrdinalIgnoreCase));
+                    int existingIdx = savedSkillsets.FindIndex(s => s.Name.Equals(skillsetEditName, System.StringComparison.OrdinalIgnoreCase));
                     if (existingIdx >= 0)
                     {
                         savedSkillsets[existingIdx].Combo = skillsetEditCombo;
@@ -1568,7 +1510,7 @@ namespace Infinity_TestMod
             curY += 20f;
 
             skillsetImportExportText = GUI.TextField(new Rect(pad, curY, innerW - 140, 30), skillsetImportExportText, textFieldStyle);
-            
+
             if (GUI.Button(new Rect(pad + innerW - 130, curY, 60, 30), "Import", closeButtonStyle))
             {
                 string payload = skillsetImportExportText.Trim();
@@ -1597,7 +1539,7 @@ namespace Infinity_TestMod
                                 }
                             }
                         }
-                        
+
                         string waitStr = "false,false,false,false,false";
                         if (parts.Length >= 4)
                         {
@@ -1859,7 +1801,7 @@ namespace Infinity_TestMod
             for (int i = 0; i < 5; i++)
             {
                 GUI.Label(new Rect(pad, curY, 80, 30), GetSkillKeyName(i), labelStyle);
-                
+
                 string delayStr = retroDelayInputs[i];
                 string newDelayStr = GUI.TextField(new Rect(pad + 85, curY, 50, 30), delayStr, textFieldStyle);
                 if (newDelayStr != delayStr)
@@ -1912,7 +1854,7 @@ namespace Infinity_TestMod
 
         private static System.Collections.Generic.List<int> ParseCombo(string comboStr)
         {
-            var list = new System.Collections.Generic.List<int>();
+            List<int> list = new();
             if (string.IsNullOrEmpty(comboStr)) return list;
             string[] parts = comboStr.Split(',');
             foreach (string part in parts)
@@ -1932,7 +1874,7 @@ namespace Infinity_TestMod
         private static void AddOrUpdateSkillset(string name, string combo, string delays, string waits, string frees)
         {
             if (string.IsNullOrEmpty(name)) return;
-            var existingIdx = savedSkillsets.FindIndex(s => s.Name.Equals(name, System.StringComparison.OrdinalIgnoreCase));
+            int existingIdx = savedSkillsets.FindIndex(s => s.Name.Equals(name, System.StringComparison.OrdinalIgnoreCase));
             if (existingIdx >= 0)
             {
                 savedSkillsets[existingIdx].Combo = combo;
@@ -2453,11 +2395,11 @@ namespace Infinity_TestMod
             // 2. Access Levels section
             GUI.Label(new Rect(pad, 100, innerW, 20), "Access Levels (hasAccess checks):", labelStyle);
             float btnW = (innerW - 16) / 5f;
-            DrawFakeDevAccessTier(pad,             btnW, "30",  30,  currentLevel, playerExists);
-            DrawFakeDevAccessTier(pad + btnW + 4,  btnW, "40",  40,  currentLevel, playerExists);
-            DrawFakeDevAccessTier(pad + (btnW + 4)*2, btnW, "50",  50,  currentLevel, playerExists);
-            DrawFakeDevAccessTier(pad + (btnW + 4)*3, btnW, "60",  60,  currentLevel, playerExists);
-            DrawFakeDevAccessTier(pad + (btnW + 4)*4, btnW, "100", 100, currentLevel, playerExists);
+            DrawFakeDevAccessTier(pad, btnW, "30", 30, currentLevel, playerExists);
+            DrawFakeDevAccessTier(pad + btnW + 4, btnW, "40", 40, currentLevel, playerExists);
+            DrawFakeDevAccessTier(pad + (btnW + 4) * 2, btnW, "50", 50, currentLevel, playerExists);
+            DrawFakeDevAccessTier(pad + (btnW + 4) * 3, btnW, "60", 60, currentLevel, playerExists);
+            DrawFakeDevAccessTier(pad + (btnW + 4) * 4, btnW, "100", 100, currentLevel, playerExists);
 
             // 3. Actions: Dev UI, Reset, Close. Name Spoof moved to the Fun
             // window; Reset still clears any active name spoof for symmetry.
@@ -2649,7 +2591,7 @@ namespace Infinity_TestMod
 
             // Selection toggle — clicking opens the picker panel.
             string selLabel = "▼ (select a track)";
-            if (jukeboxSelectedId > 0 && MusicCatalog.Tracks.TryGetValue(jukeboxSelectedId, out var curTrack))
+            if (jukeboxSelectedId > 0 && MusicCatalog.Tracks.TryGetValue(jukeboxSelectedId, out MusicCatalog.TrackEntry curTrack))
             {
                 string nm = string.IsNullOrEmpty(curTrack.name) ? "?" : curTrack.name;
                 selLabel = $"{(jukeboxPickerOpen ? "▲" : "▼")} {curTrack.id} — {nm}  ({FormatTrackTime(curTrack.length)})";
@@ -2669,8 +2611,8 @@ namespace Infinity_TestMod
                 jukeboxFilter = GUI.TextField(new Rect(pad + 60, curY, innerW - 60, 22), jukeboxFilter ?? "");
                 curY += 26f;
 
-                var filter = (jukeboxFilter ?? "").Trim();
-                var entries = MusicCatalog.Tracks.Values
+                string filter = (jukeboxFilter ?? "").Trim();
+                List<MusicCatalog.TrackEntry> entries = MusicCatalog.Tracks.Values
                     .Where(t => string.IsNullOrEmpty(filter)
                         || t.id.ToString().Contains(filter)
                         || (!string.IsNullOrEmpty(t.name)
@@ -2687,7 +2629,7 @@ namespace Infinity_TestMod
                     new Rect(0, 0, innerW - 20, contentH));
                 for (int i = 0; i < entries.Count; i++)
                 {
-                    var t = entries[i];
+                    MusicCatalog.TrackEntry t = entries[i];
                     string nm = string.IsNullOrEmpty(t.name) ? "?" : t.name;
                     string row = $"{t.id,4} — {nm}  ({FormatTrackTime(t.length)})";
                     if (GUI.Button(new Rect(0, i * rowH, innerW - 20, rowH - 2), row, closeButtonStyle))
@@ -2802,13 +2744,13 @@ namespace Infinity_TestMod
             string slotLabel;
             switch (catalogOpenSlot)
             {
-                case 1: bucket = ItemCatalog.Helms;    onSelect = s => helmSpoofInput   = s; slotLabel = "Helm";    break;
-                case 2: bucket = ItemCatalog.Armors;   onSelect = s => armorSpoofInput  = s; slotLabel = "Armor";   break;
-                case 3: bucket = ItemCatalog.Backs;    onSelect = s => backSpoofInput   = s; slotLabel = "Cape";    break;
-                case 4: bucket = ItemCatalog.Weapons;  onSelect = s => weaponSpoofInput = s; slotLabel = "Weapon";  break;
-                case 5: bucket = ItemCatalog.Pets;     onSelect = s => petSpoofInput    = s; slotLabel = "Pet";     break;
-                case 6: bucket = ItemCatalog.Monsters; onSelect = s => petSpoofInput       = s; slotLabel = "Monster (Pet)";       break;
-                case 7: bucket = ItemCatalog.Monsters; onSelect = s => monTransformInput   = s; slotLabel = "Monster (Transform)"; break;
+                case 1: bucket = ItemCatalog.Helms; onSelect = s => helmSpoofInput = s; slotLabel = "Helm"; break;
+                case 2: bucket = ItemCatalog.Armors; onSelect = s => armorSpoofInput = s; slotLabel = "Armor"; break;
+                case 3: bucket = ItemCatalog.Backs; onSelect = s => backSpoofInput = s; slotLabel = "Cape"; break;
+                case 4: bucket = ItemCatalog.Weapons; onSelect = s => weaponSpoofInput = s; slotLabel = "Weapon"; break;
+                case 5: bucket = ItemCatalog.Pets; onSelect = s => petSpoofInput = s; slotLabel = "Pet"; break;
+                case 6: bucket = ItemCatalog.Monsters; onSelect = s => petSpoofInput = s; slotLabel = "Monster (Pet)"; break;
+                case 7: bucket = ItemCatalog.Monsters; onSelect = s => monTransformInput = s; slotLabel = "Monster (Transform)"; break;
                 default: return curY;
             }
 
@@ -2829,11 +2771,11 @@ namespace Infinity_TestMod
                 {
                     switch (catalogOpenSlot)
                     {
-                        case 1: ItemCatalog.ClearHelms();    break;
-                        case 2: ItemCatalog.ClearArmors();   break;
-                        case 3: ItemCatalog.ClearBacks();    break;
-                        case 4: ItemCatalog.ClearWeapons();  break;
-                        case 5: ItemCatalog.ClearPets();     break;
+                        case 1: ItemCatalog.ClearHelms(); break;
+                        case 2: ItemCatalog.ClearArmors(); break;
+                        case 3: ItemCatalog.ClearBacks(); break;
+                        case 4: ItemCatalog.ClearWeapons(); break;
+                        case 5: ItemCatalog.ClearPets(); break;
                         case 6: ItemCatalog.ClearMonsters(); break;
                         case 7: ItemCatalog.ClearMonsters(); break;
                     }
@@ -2849,8 +2791,8 @@ namespace Infinity_TestMod
             curY += 32f;
 
             string filt = catalogFilter?.ToLowerInvariant() ?? "";
-            var matches = new System.Collections.Generic.List<ItemCatalog.ItemEntry>();
-            foreach (var e in bucket.Values)
+            List<ItemCatalog.ItemEntry> matches = new();
+            foreach (ItemCatalog.ItemEntry e in bucket.Values)
             {
                 string display = !string.IsNullOrEmpty(e.name) ? e.name : ItemCatalog.ParseFriendlyName(e.bundle);
                 if (filt.Length == 0
@@ -2875,7 +2817,7 @@ namespace Infinity_TestMod
                 new Rect(0, 0, innerW - 20, contentH));
             for (int i = 0; i < matches.Count; i++)
             {
-                var e = matches[i];
+                ItemCatalog.ItemEntry e = matches[i];
                 string display = !string.IsNullOrEmpty(e.name)
                     ? e.name
                     : ItemCatalog.ParseFriendlyName(e.bundle);
@@ -2996,7 +2938,7 @@ namespace Infinity_TestMod
                 MelonLogger.Warning("[WeaponSpoof] no weapon equipped — equip one before spoofing.");
                 return;
             }
-            if (!ItemCatalog.Weapons.TryGetValue(desiredBundle, out var cat))
+            if (!ItemCatalog.Weapons.TryGetValue(desiredBundle, out ItemCatalog.ItemEntry cat))
             {
                 MelonLogger.Warning($"[WeaponSpoof] '{desiredBundle}' not in catalog. See it on a character first so PrefabName/ItemType can be captured.");
                 return;
@@ -3038,7 +2980,7 @@ namespace Infinity_TestMod
                 MelonLogger.Warning("[PetSpoof] no pet equipped — equip one before spoofing.");
                 return;
             }
-            if (!ItemCatalog.TryGetPetOrMonster(desiredBundle, out var cat))
+            if (!ItemCatalog.TryGetPetOrMonster(desiredBundle, out ItemCatalog.ItemEntry cat))
             {
                 MelonLogger.Warning($"[PetSpoof] '{desiredBundle}' not in Pets or Monsters catalog. See it in-world first so PrefabName/Scale can be captured.");
                 return;
@@ -3047,9 +2989,9 @@ namespace Infinity_TestMod
             petSpoofActive = true;
             petSpoofBundle = desiredBundle;
             petSpoofInput = desiredBundle;
-            var sourceBucket = ItemCatalog.Pets.ContainsKey(desiredBundle)
+            Dictionary<string, ItemCatalog.ItemEntry> sourceBucket = ItemCatalog.Pets.ContainsKey(desiredBundle)
                 ? ItemCatalog.Pets : ItemCatalog.Monsters;
-            var spoofedBundle = SpoofBundleBuilder.Build(desiredBundle, sourceBucket, Entity.mainPlayer.Pet.Bundle, Entity.mainPlayer.Pet.Bundle);
+            AssetBundleData spoofedBundle = BundleBuilder.Build(desiredBundle, sourceBucket, Entity.mainPlayer.Pet.Bundle, Entity.mainPlayer.Pet.Bundle);
             PetSpoofState.Apply(Entity.mainPlayer.Pet, spoofedBundle, cat.prefab, cat.scale, cat.offX, cat.offY);
             // Use the game's own re-equip-pet path. createAvatar doesn't help
             // because loadAllEquip only constructs a PetLoader when petGO is
@@ -3089,7 +3031,7 @@ namespace Infinity_TestMod
                 ClearMonTransformSpoof();
                 return;
             }
-            if (!ItemCatalog.Monsters.TryGetValue(desiredBundle, out var cat))
+            if (!ItemCatalog.Monsters.TryGetValue(desiredBundle, out ItemCatalog.ItemEntry cat))
             {
                 MelonLogger.Warning($"[MonTransform] '{desiredBundle}' not in Monsters catalog. See the monster in-world first.");
                 return;
@@ -3097,7 +3039,7 @@ namespace Infinity_TestMod
 
             float scale = (float)(cat.scale ?? 1.0);
             if (scale <= 0f) scale = 1f;
-            var bundle = SpoofBundleBuilder.Build(desiredBundle, ItemCatalog.Monsters, null, null);
+            AssetBundleData bundle = BundleBuilder.Build(desiredBundle, ItemCatalog.Monsters, null, null);
 
             try
             {
@@ -3377,7 +3319,7 @@ namespace Infinity_TestMod
             // previous y=58 line that was colliding with the Frame row.
             string resolvedName = "?";
             if (int.TryParse(questRunnerIdInput, out int previewQid)
-                && Directory.Quests.TryGetValue(previewQid, out var qe))
+                && Directory.Quests.TryGetValue(previewQid, out Directory.QuestEntry qe))
                 resolvedName = qe.name ?? "?";
             GUI.Label(new Rect(pad + 460, 35 + 5, 200, 25),
                 $"  ↳ {resolvedName}", logTextStyle);
@@ -3449,10 +3391,10 @@ namespace Infinity_TestMod
                     Quest q = Quest.Get(qid);
                     if (q != null && q.Turnins != null)
                     {
-                        var pq = Entity.mainPlayer?.Quests;
+                        PlayerQuestData pq = Entity.mainPlayer?.Quests;
                         for (int i = 0; i < q.Turnins.Length && i < 6; i++)
                         {
-                            var t = q.Turnins[i];
+                            QuestTurninItem t = q.Turnins[i];
                             int have = pq?.getQuestObjective(t.QOID)?.Quantity ?? 0;
                             bool done = pq?.IsObjectiveComplete(t.QOID) ?? false;
                             string mark = done ? "<color=green>✓</color>" : " ";
@@ -3489,7 +3431,7 @@ namespace Infinity_TestMod
             GUI.EndScrollView();
 
             // ---- Chain selector row with dropdown + New/Edit/Run ----
-            var chainNames = new System.Collections.Generic.List<string>(QuestChains.Names);
+            List<string> chainNames = new(QuestChains.Names);
             if (questChainPickerIndex >= chainNames.Count) questChainPickerIndex = 0;
             string currentChainName = chainNames.Count == 0
                 ? "(no chains)"
@@ -3556,7 +3498,7 @@ namespace Infinity_TestMod
                 for (int ci = 0; ci < chainNames.Count; ci++)
                 {
                     bool selected = ci == questChainPickerIndex;
-                    var style = selected ? labelStyle : rowButtonStyle;
+                    GUIStyle style = selected ? labelStyle : rowButtonStyle;
                     if (GUI.Button(new Rect(0, ci * ddRowH, ddW - 16, ddRowH - 2), chainNames[ci], style))
                     {
                         questChainPickerIndex = ci;
@@ -3590,8 +3532,8 @@ namespace Infinity_TestMod
                 // Filtered list — only enumerate Directory entries that match
                 // (case-insensitive substring on id/name/storyline). Sorted by id.
                 string filt = questPickerFilter?.ToLowerInvariant() ?? "";
-                var matches = new System.Collections.Generic.List<System.Collections.Generic.KeyValuePair<int, Directory.QuestEntry>>();
-                foreach (var kv in Directory.Quests)
+                List<KeyValuePair<int, Directory.QuestEntry>> matches = new();
+                foreach (KeyValuePair<int, Directory.QuestEntry> kv in Directory.Quests)
                 {
                     if (filt.Length == 0
                         || kv.Key.ToString().Contains(filt)
@@ -3611,7 +3553,7 @@ namespace Infinity_TestMod
                     new Rect(0, 0, innerW - 20, contentH));
                 for (int i = 0; i < matches.Count; i++)
                 {
-                    var kv = matches[i];
+                    KeyValuePair<int, Directory.QuestEntry> kv = matches[i];
                     string row = $"  {kv.Key,5}  {kv.Value.name}"
                                + (string.IsNullOrEmpty(kv.Value.storyline) ? "" : $"   <i>({kv.Value.storyline})</i>");
                     if (GUI.Button(new Rect(0, i * rowH, innerW - 25, rowH), row, rowButtonStyle))
@@ -3627,15 +3569,16 @@ namespace Infinity_TestMod
         }
 
         // ------- Chain Editor logic + GUI (INJECTED) -------
-        private class ChainEditState {
+        private class ChainEditState
+        {
             public string editingName;
             public string saveAsName = "";
-            public List<QuestChains.Entry> entries = new List<QuestChains.Entry>();
+            public List<QuestChains.Entry> entries = new();
             public int editingIdx = -1;
             public string errorMsg = null;
             public bool editingExisting = false;
             public Vector2 scroll = Vector2.zero;
-            public List<string> chainNames = new List<string>();
+            public List<string> chainNames = new();
             // Load dropdown
             public bool showLoadDropdown = false;
             public Vector2 loadDropScroll = Vector2.zero;
@@ -3645,14 +3588,20 @@ namespace Infinity_TestMod
             {
                 chainNames = new List<string>(allNames);
                 editingName = pick ?? "NewChain";
-                saveAsName  = editingName;
-                entries = (pick!=null && QuestChains.Get(pick)!=null) ?
-                          QuestChains.Get(pick).Select(e=>new QuestChains.Entry{
-                              qid=e.qid,area=e.area,frame=e.frame,pad=e.pad,items=e.items}).ToList() :
+                saveAsName = editingName;
+                entries = (pick != null && QuestChains.Get(pick) != null) ?
+                          QuestChains.Get(pick).Select(e => new QuestChains.Entry
+                          {
+                              qid = e.qid,
+                              area = e.area,
+                              frame = e.frame,
+                              pad = e.pad,
+                              items = e.items
+                          }).ToList() :
                           new List<QuestChains.Entry>();
                 errorMsg = null;
                 editingExisting = (pick != null && QuestChains.Get(pick) != null);
-                editingIdx = (pick==null ? -1 : allNames.IndexOf(pick));
+                editingIdx = (pick == null ? -1 : allNames.IndexOf(pick));
                 showLoadDropdown = false;
                 loadSelectedIdx = editingIdx;
             }
@@ -3687,7 +3636,7 @@ namespace Infinity_TestMod
             {
                 _chainEditState.entries.Clear();
                 _chainEditState.editingName = "NewChain";
-                _chainEditState.saveAsName  = "NewChain";
+                _chainEditState.saveAsName = "NewChain";
                 _chainEditState.editingExisting = false;
                 _chainEditState.errorMsg = null;
             }
@@ -3702,45 +3651,45 @@ namespace Infinity_TestMod
 
             // ---- Status / error ----
             if (_chainEditState.errorMsg != null)
-                GUI.Label(new Rect(p, y, W - p*2, 20), _chainEditState.errorMsg, logTextStyle);
+                GUI.Label(new Rect(p, y, W - p * 2, 20), _chainEditState.errorMsg, logTextStyle);
             y += 22f;
 
             // ---- Entries header ----
-            GUI.Label(new Rect(p, y, W - p*2, 18), "Entries:   qid | area | frame | pad | iters | -", labelStyle);
+            GUI.Label(new Rect(p, y, W - p * 2, 18), "Entries:   qid | area | frame | pad | iters | -", labelStyle);
             y += 20f;
 
             // ---- Entries scroll list ----
             float entrH = H - y - 44f;
             _chainEditState.scroll = GUI.BeginScrollView(
-                new Rect(p, y, W - p*2, entrH),
+                new Rect(p, y, W - p * 2, entrH),
                 _chainEditState.scroll,
-                new Rect(0, 0, W - p*2 - 18, Mathf.Max(entrH - 4, _chainEditState.entries.Count * 32 + 36)));
+                new Rect(0, 0, W - p * 2 - 18, Mathf.Max(entrH - 4, _chainEditState.entries.Count * 32 + 36)));
             for (int i = 0; i < _chainEditState.entries.Count; i++)
             {
-                var ent = _chainEditState.entries[i];
+                QuestChains.Entry ent = _chainEditState.entries[i];
                 float ey = i * 32f;
-                string sqid   = GUI.TextField(new Rect(0,   ey, 50, 26), ent.qid.ToString(),  textFieldStyle); int.TryParse(sqid, out ent.qid);
-                string sarea  = GUI.TextField(new Rect(56,  ey, 78, 26), ent.area  ?? "",     textFieldStyle); ent.area  = sarea;
-                string sframe = GUI.TextField(new Rect(140, ey, 68, 26), ent.frame ?? "",     textFieldStyle); ent.frame = sframe;
-                string spad   = GUI.TextField(new Rect(214, ey, 58, 26), ent.pad   ?? "Spawn", textFieldStyle); ent.pad   = spad;
+                string sqid = GUI.TextField(new Rect(0, ey, 50, 26), ent.qid.ToString(), textFieldStyle); int.TryParse(sqid, out ent.qid);
+                string sarea = GUI.TextField(new Rect(56, ey, 78, 26), ent.area ?? "", textFieldStyle); ent.area = sarea;
+                string sframe = GUI.TextField(new Rect(140, ey, 68, 26), ent.frame ?? "", textFieldStyle); ent.frame = sframe;
+                string spad = GUI.TextField(new Rect(214, ey, 58, 26), ent.pad ?? "Spawn", textFieldStyle); ent.pad = spad;
                 string sitems = GUI.TextField(new Rect(278, ey, 38, 26), ent.items.ToString(), textFieldStyle); int itemsval = ent.items; int.TryParse(sitems, out itemsval); ent.items = itemsval < 1 ? 1 : itemsval;
                 if (GUI.Button(new Rect(322, ey, 28, 26), "-", closeButtonStyle)) { _chainEditState.entries.RemoveAt(i); break; }
                 _chainEditState.entries[i] = ent;
             }
             if (GUI.Button(new Rect(0, _chainEditState.entries.Count * 32f, 28, 26), "+", closeButtonStyle))
-_chainEditState.entries.Add(new QuestChains.Entry { qid = 1, area = "", frame = "", pad = "Spawn", items = 1 });
+                _chainEditState.entries.Add(new QuestChains.Entry { qid = 1, area = "", frame = "", pad = "Spawn", items = 1 });
             GUI.EndScrollView();
             y += entrH + 6f;
 
             // ---- Bottom buttons: Save / Save As / Delete / Export / Import / Close ----
             float bw = 72f;
-            if (GUI.Button(new Rect(p,             y, bw, 28), _chainEditState.editingExisting ? "Update" : "Save", closeButtonStyle)) SaveEditedChain(false);
-            if (GUI.Button(new Rect(p + bw + 4,    y, bw, 28), "Save As",   closeButtonStyle)) SaveEditedChain(true);
+            if (GUI.Button(new Rect(p, y, bw, 28), _chainEditState.editingExisting ? "Update" : "Save", closeButtonStyle)) SaveEditedChain(false);
+            if (GUI.Button(new Rect(p + bw + 4, y, bw, 28), "Save As", closeButtonStyle)) SaveEditedChain(true);
             if (_chainEditState.editingExisting)
-                if (GUI.Button(new Rect(p + bw*2 + 8,  y, bw, 28), "Delete", closeButtonStyle)) DeleteEditedChain();
-            if (GUI.Button(new Rect(p + bw*3 + 12, y, bw, 28), "Export",   closeButtonStyle)) ExportChain();
-            if (GUI.Button(new Rect(p + bw*4 + 16, y, bw, 28), "Import",   closeButtonStyle)) ImportChain();
-            if (GUI.Button(new Rect(W - p - 58,    y, 58, 28), "Close",    closeButtonStyle)) _showChainEditor = false;
+                if (GUI.Button(new Rect(p + bw * 2 + 8, y, bw, 28), "Delete", closeButtonStyle)) DeleteEditedChain();
+            if (GUI.Button(new Rect(p + bw * 3 + 12, y, bw, 28), "Export", closeButtonStyle)) ExportChain();
+            if (GUI.Button(new Rect(p + bw * 4 + 16, y, bw, 28), "Import", closeButtonStyle)) ImportChain();
+            if (GUI.Button(new Rect(W - p - 58, y, 58, 28), "Close", closeButtonStyle)) _showChainEditor = false;
 
             // ---- Load dropdown (drawn on top of everything else) ----
             if (_chainEditState.showLoadDropdown && _chainEditState.chainNames.Count > 0)
@@ -3769,14 +3718,15 @@ _chainEditState.entries.Add(new QuestChains.Entry { qid = 1, area = "", frame = 
 
         private static void SaveEditedChain(bool saveAs)
         {
-            try {
+            try
+            {
                 string nm = (saveAs ? _chainEditState.saveAsName : _chainEditState.editingName)?.Trim();
-                if (string.IsNullOrEmpty(nm))           { _chainEditState.errorMsg = saveAs ? "Save As name required" : "Chain name required"; return; }
-                if (_chainEditState.entries.Count == 0)  { _chainEditState.errorMsg = "Add at least 1 entry"; return; }
-                foreach (var e in _chainEditState.entries)
+                if (string.IsNullOrEmpty(nm)) { _chainEditState.errorMsg = saveAs ? "Save As name required" : "Chain name required"; return; }
+                if (_chainEditState.entries.Count == 0) { _chainEditState.errorMsg = "Add at least 1 entry"; return; }
+                foreach (QuestChains.Entry e in _chainEditState.entries)
                     if (e.qid <= 0) { _chainEditState.errorMsg = "qid must be a positive number"; return; }
 
-                string userDir  = System.IO.Path.Combine(MelonEnvironment.UserDataDirectory, "Beyond");
+                string userDir = System.IO.Path.Combine(MelonEnvironment.UserDataDirectory, "Beyond");
                 System.IO.Directory.CreateDirectory(userDir);
                 string chainFile = System.IO.Path.Combine(userDir, "chains.json");
 
@@ -3794,36 +3744,41 @@ _chainEditState.entries.Add(new QuestChains.Entry { qid = 1, area = "", frame = 
                 QuestChains.Init();
 
                 // Refresh editor state
-                _chainEditState.editingName     = nm;
-                _chainEditState.saveAsName      = nm;
+                _chainEditState.editingName = nm;
+                _chainEditState.saveAsName = nm;
                 _chainEditState.editingExisting = true;
-                _chainEditState.chainNames      = new List<string>(QuestChains.Names);
+                _chainEditState.chainNames = new List<string>(QuestChains.Names);
                 _chainEditState.loadSelectedIdx = _chainEditState.chainNames.IndexOf(nm);
-                _chainEditState.errorMsg        = saveAs ? $"Saved as: {nm}" : $"Saved: {nm}";
-            } catch (System.Exception ex) {
+                _chainEditState.errorMsg = saveAs ? $"Saved as: {nm}" : $"Saved: {nm}";
+            }
+            catch (System.Exception ex)
+            {
                 _chainEditState.errorMsg = ex.Message;
             }
         }
 
         private static void DeleteEditedChain()
         {
-            try {
-                string userDir   = System.IO.Path.Combine(MelonEnvironment.UserDataDirectory, "Beyond");
+            try
+            {
+                string userDir = System.IO.Path.Combine(MelonEnvironment.UserDataDirectory, "Beyond");
                 string chainFile = System.IO.Path.Combine(userDir, "chains.json");
                 if (!System.IO.File.Exists(chainFile)) { _chainEditState.errorMsg = "User chains.json not found"; return; }
 
-                var root = Newtonsoft.Json.Linq.JObject.Parse(System.IO.File.ReadAllText(chainFile));
+                JObject root = Newtonsoft.Json.Linq.JObject.Parse(System.IO.File.ReadAllText(chainFile));
                 if (root.Remove(_chainEditState.editingName))
                 {
                     System.IO.File.WriteAllText(chainFile, root.ToString(Newtonsoft.Json.Formatting.Indented));
                     QuestChains.Init();
-                    _chainEditState.chainNames      = new List<string>(QuestChains.Names);
+                    _chainEditState.chainNames = new List<string>(QuestChains.Names);
                     _chainEditState.loadSelectedIdx = _chainEditState.chainNames.Count > 0 ? 0 : -1;
                     _chainEditState.editingExisting = false;
-                    _chainEditState.errorMsg        = "Deleted!";
+                    _chainEditState.errorMsg = "Deleted!";
                 }
                 else { _chainEditState.errorMsg = "Not found in user file (bootstrap-only chain can't be deleted here)"; }
-            } catch (System.Exception ex) {
+            }
+            catch (System.Exception ex)
+            {
                 _chainEditState.errorMsg = ex.Message;
             }
         }
@@ -3831,12 +3786,13 @@ _chainEditState.entries.Add(new QuestChains.Entry { qid = 1, area = "", frame = 
         // Export the currently loaded entries as a standalone .json preset file
         private static void ExportChain()
         {
-            try {
+            try
+            {
                 string nm = _chainEditState.editingName?.Trim();
-                if (string.IsNullOrEmpty(nm))           { _chainEditState.errorMsg = "Set a chain name before exporting"; return; }
-                if (_chainEditState.entries.Count == 0)  { _chainEditState.errorMsg = "Nothing to export"; return; }
+                if (string.IsNullOrEmpty(nm)) { _chainEditState.errorMsg = "Set a chain name before exporting"; return; }
+                if (_chainEditState.entries.Count == 0) { _chainEditState.errorMsg = "Nothing to export"; return; }
 
-                string defaultDir  = System.IO.Path.Combine(MelonEnvironment.UserDataDirectory, "Beyond");
+                string defaultDir = System.IO.Path.Combine(MelonEnvironment.UserDataDirectory, "Beyond");
                 System.IO.Directory.CreateDirectory(defaultDir);
                 string path = ShowSaveFileDialog(defaultDir, nm + ".json");
                 if (path == null) return;  // user cancelled
@@ -3845,11 +3801,13 @@ _chainEditState.entries.Add(new QuestChains.Entry { qid = 1, area = "", frame = 
                 if (!path.EndsWith(".json", System.StringComparison.OrdinalIgnoreCase))
                     path += ".json";
 
-                var obj = new Newtonsoft.Json.Linq.JObject();
+                JObject obj = new();
                 obj[nm] = EntriesToJArray(_chainEditState.entries);
                 System.IO.File.WriteAllText(path, obj.ToString(Newtonsoft.Json.Formatting.Indented));
                 _chainEditState.errorMsg = $"Exported to: {System.IO.Path.GetFileName(path)}";
-            } catch (System.Exception ex) {
+            }
+            catch (System.Exception ex)
+            {
                 _chainEditState.errorMsg = ex.Message;
             }
         }
@@ -3857,14 +3815,15 @@ _chainEditState.entries.Add(new QuestChains.Entry { qid = 1, area = "", frame = 
         // Import a preset .json file — merges all chains found in it into UserData/Beyond/chains.json
         private static void ImportChain()
         {
-            try {
+            try
+            {
                 string defaultDir = System.IO.Path.Combine(MelonEnvironment.UserDataDirectory, "Beyond");
                 System.IO.Directory.CreateDirectory(defaultDir);
                 string path = ShowOpenFileDialog(defaultDir, "");
                 if (path == null) return;  // user cancelled
 
                 string imported = System.IO.File.ReadAllText(path);
-                var importObj   = Newtonsoft.Json.Linq.JObject.Parse(imported);
+                JObject importObj = Newtonsoft.Json.Linq.JObject.Parse(imported);
 
                 string chainFile = System.IO.Path.Combine(defaultDir, "chains.json");
                 Newtonsoft.Json.Linq.JObject root;
@@ -3875,7 +3834,7 @@ _chainEditState.entries.Add(new QuestChains.Entry { qid = 1, area = "", frame = 
 
                 int count = 0;
                 string lastName = null;
-                foreach (var prop in importObj.Properties())
+                foreach (JProperty prop in importObj.Properties())
                 {
                     if (prop.Name.StartsWith("_")) continue;
                     if (prop.Value is not Newtonsoft.Json.Linq.JArray) continue;
@@ -3888,13 +3847,15 @@ _chainEditState.entries.Add(new QuestChains.Entry { qid = 1, area = "", frame = 
                 System.IO.File.WriteAllText(chainFile, root.ToString(Newtonsoft.Json.Formatting.Indented));
                 QuestChains.Init();
 
-                _chainEditState.chainNames      = new List<string>(QuestChains.Names);
+                _chainEditState.chainNames = new List<string>(QuestChains.Names);
                 _chainEditState.loadSelectedIdx = lastName != null ? _chainEditState.chainNames.IndexOf(lastName) : 0;
 
                 // Auto-load the last imported chain into the editor
                 if (lastName != null) _chainEditState.Open(_chainEditState.chainNames, lastName);
                 _chainEditState.errorMsg = $"Imported {count} chain(s) from {System.IO.Path.GetFileName(path)}";
-            } catch (System.Exception ex) {
+            }
+            catch (System.Exception ex)
+            {
                 _chainEditState.errorMsg = ex.Message;
             }
         }
@@ -3902,14 +3863,14 @@ _chainEditState.entries.Add(new QuestChains.Entry { qid = 1, area = "", frame = 
         // Shared helper: List<Entry> -> JArray
         private static Newtonsoft.Json.Linq.JArray EntriesToJArray(List<QuestChains.Entry> entries)
         {
-            var arr = new Newtonsoft.Json.Linq.JArray();
-            foreach (var ent in entries)
+            JArray arr = new();
+            foreach (QuestChains.Entry ent in entries)
             {
-                var o = new Newtonsoft.Json.Linq.JObject();
-                o["qid"]   = ent.qid;
-                o["area"]  = ent.area  ?? "";
+                JObject o = new();
+                o["qid"] = ent.qid;
+                o["area"] = ent.area ?? "";
                 o["frame"] = ent.frame ?? "";
-                o["pad"]   = string.IsNullOrEmpty(ent.pad) ? "Spawn" : ent.pad;
+                o["pad"] = string.IsNullOrEmpty(ent.pad) ? "Spawn" : ent.pad;
                 o["items"] = ent.items < 1 ? 1 : ent.items;
                 arr.Add(o);
             }
@@ -3925,15 +3886,15 @@ _chainEditState.entries.Add(new QuestChains.Entry { qid = 1, area = "", frame = 
         {
             try
             {
-                var es = UnityEngine.EventSystems.EventSystem.current;
+                EventSystem es = UnityEngine.EventSystems.EventSystem.current;
                 if (es == null) return false;
-                var sel = es.currentSelectedGameObject;
+                GameObject sel = es.currentSelectedGameObject;
                 if (sel == null) return false;
                 if (sel.GetComponent<UnityEngine.UI.InputField>() != null) return true;
-                foreach (var c in sel.GetComponents<UnityEngine.MonoBehaviour>())
+                foreach (MonoBehaviour c in sel.GetComponents<UnityEngine.MonoBehaviour>())
                 {
                     if (c == null) continue;
-                    var n = c.GetType().Name;
+                    string n = c.GetType().Name;
                     if (n == "TMP_InputField" || n == "TMPro_InputField") return true;
                 }
             }
@@ -4309,10 +4270,10 @@ _chainEditState.entries.Add(new QuestChains.Entry { qid = 1, area = "", frame = 
 
         private static string ShowOpenFileDialog(string defaultDir, string defaultFilename)
         {
-            OpenFileName ofn = new OpenFileName();
+            OpenFileName ofn = new();
             ofn.lStructSize = System.Runtime.InteropServices.Marshal.SizeOf(ofn);
             ofn.lpstrFilter = "Text Files (*.txt)\0*.txt\0All Files (*.*)\0*.*\0\0";
-            
+
             string initialFile = defaultFilename;
             if (string.IsNullOrEmpty(initialFile))
             {
@@ -4322,11 +4283,11 @@ _chainEditState.entries.Add(new QuestChains.Entry { qid = 1, area = "", frame = 
             initialFile.CopyTo(0, chars, 0, System.Math.Min(initialFile.Length, chars.Length - 1));
             ofn.lpstrFile = new string(chars);
             ofn.nMaxFile = chars.Length;
-            
+
             ofn.lpstrInitialDir = defaultDir;
             ofn.lpstrTitle = "Select Skillset File";
             ofn.hwndOwner = GetActiveWindow();
-            
+
             // OFN_EXPLORER | OFN_FILEMUSTEXIST | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR
             ofn.Flags = 0x00080000 | 0x00001000 | 0x00000800 | 0x00000008;
 
@@ -4344,10 +4305,10 @@ _chainEditState.entries.Add(new QuestChains.Entry { qid = 1, area = "", frame = 
 
         private static string ShowSaveFileDialog(string defaultDir, string defaultFilename)
         {
-            OpenFileName ofn = new OpenFileName();
+            OpenFileName ofn = new();
             ofn.lStructSize = System.Runtime.InteropServices.Marshal.SizeOf(ofn);
             ofn.lpstrFilter = "Text Files (*.txt)\0*.txt\0All Files (*.*)\0*.*\0\0";
-            
+
             string initialFile = defaultFilename;
             if (string.IsNullOrEmpty(initialFile))
             {
@@ -4357,12 +4318,12 @@ _chainEditState.entries.Add(new QuestChains.Entry { qid = 1, area = "", frame = 
             initialFile.CopyTo(0, chars, 0, System.Math.Min(initialFile.Length, chars.Length - 1));
             ofn.lpstrFile = new string(chars);
             ofn.nMaxFile = chars.Length;
-            
+
             ofn.lpstrInitialDir = defaultDir;
             ofn.lpstrTitle = "Save Skillset File As";
             ofn.hwndOwner = GetActiveWindow();
             ofn.lpstrDefExt = "txt";
-            
+
             // OFN_EXPLORER | OFN_OVERWRITEPROMPT | OFN_PATHMUSTEXIST | OFN_NOCHANGEDIR
             ofn.Flags = 0x00080000 | 0x00000002 | 0x00000800 | 0x00000008;
 

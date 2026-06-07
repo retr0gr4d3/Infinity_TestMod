@@ -1,11 +1,11 @@
-using System;
-using System.Collections.Generic;
-using System.IO;
-using System.Linq;
 using MelonLoader;
 using MelonLoader.Utils;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
 
 namespace Infinity_TestMod.Util
 {
@@ -61,11 +61,11 @@ namespace Infinity_TestMod.Util
         /// per-slot Clear button so a wipe is durable across game restarts
         /// even if OnApplicationQuit doesn't fire (crash, hard kill).
         /// </summary>
-        public static void ClearArmors()  => ClearBucket(Armors);
-        public static void ClearHelms()   => ClearBucket(Helms);
-        public static void ClearBacks()   => ClearBucket(Backs);
+        public static void ClearArmors() => ClearBucket(Armors);
+        public static void ClearHelms() => ClearBucket(Helms);
+        public static void ClearBacks() => ClearBucket(Backs);
         public static void ClearWeapons() => ClearBucket(Weapons);
-        public static void ClearPets()     => ClearBucket(Pets);
+        public static void ClearPets() => ClearBucket(Pets);
         public static void ClearMonsters() => ClearBucket(Monsters);
 
         /// <summary>
@@ -183,7 +183,7 @@ namespace Infinity_TestMod.Util
         {
             if (bundle == null || string.IsNullOrEmpty(bundle.Filename)) return;
             string key = bundle.Filename;
-            var entry = new ItemEntry
+            ItemEntry entry = new()
             {
                 id = id,
                 name = name ?? "",
@@ -200,7 +200,7 @@ namespace Infinity_TestMod.Util
             };
             lock (_lock)
             {
-                if (bucket.TryGetValue(key, out var existing)
+                if (bucket.TryGetValue(key, out ItemEntry existing)
                     && existing.id == entry.id && existing.name == entry.name
                     && existing.prefab == entry.prefab && existing.verC == entry.verC
                     && existing.verS == entry.verS && existing.verL == entry.verL
@@ -222,7 +222,7 @@ namespace Infinity_TestMod.Util
 
         static void LoadLive(string path)
         {
-            var obj = JObject.Parse(File.ReadAllText(path));
+            JObject obj = JObject.Parse(File.ReadAllText(path));
             LoadBucket(obj, "armors", Armors);
             LoadBucket(obj, "helms", Helms);
             LoadBucket(obj, "backs", Backs);
@@ -235,11 +235,11 @@ namespace Infinity_TestMod.Util
         {
             if (obj[key] is JArray arr)
             {
-                foreach (var t in arr)
+                foreach (JToken t in arr)
                 {
                     if (t is JObject e)
                     {
-                        var entry = e.ToObject<ItemEntry>();
+                        ItemEntry entry = e.ToObject<ItemEntry>();
                         if (entry != null && !string.IsNullOrEmpty(entry.bundle))
                             bucket[entry.bundle] = entry;
                     }

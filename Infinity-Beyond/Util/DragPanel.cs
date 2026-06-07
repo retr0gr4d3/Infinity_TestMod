@@ -1,3 +1,4 @@
+using System.Text;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
@@ -54,13 +55,13 @@ namespace Infinity_TestMod.Util
         public static bool AttachToWindowRoot(Component source, string logTag)
         {
             if (source == null) return false;
-            var start = source.transform as RectTransform;
+            RectTransform start = source.transform as RectTransform;
             if (start == null)
             {
                 MelonLoader.MelonLogger.Warning($"[{logTag}] {source.GetType().Name} has no RectTransform — UI layout changed?");
                 return false;
             }
-            var target = FindWindowRoot(start);
+            RectTransform target = FindWindowRoot(start);
             if (target.GetComponent<DragPanel>() != null) return false; // already attached, no log
             if (DumpHierarchyOnAttach) LogAncestorChain(start, logTag);
             target.gameObject.AddComponent<DragPanel>();
@@ -70,12 +71,12 @@ namespace Infinity_TestMod.Util
 
         private static void LogAncestorChain(RectTransform start, string logTag)
         {
-            var sb = new System.Text.StringBuilder();
+            StringBuilder sb = new();
             sb.Append($"[{logTag}] ancestors: ");
             int depth = 0;
-            for (var t = (Transform)start; t != null; t = t.parent, depth++)
+            for (Transform t = start; t != null; t = t.parent, depth++)
             {
-                var rt = t as RectTransform;
+                RectTransform rt = t as RectTransform;
                 int rtKids = rt != null ? CountRectTransformChildren(t) : -1;
                 bool isCanvas = t.GetComponent<Canvas>() != null;
                 sb.Append($"\n  [{depth}] '{t.name}' rt={(rt != null)} rtKids={rtKids}{(isCanvas ? " <-Canvas" : "")}");
@@ -86,10 +87,10 @@ namespace Infinity_TestMod.Util
 
         private static RectTransform FindWindowRoot(RectTransform start)
         {
-            var current = start;
+            RectTransform current = start;
             while (true)
             {
-                var parent = current.parent;
+                Transform parent = current.parent;
                 if (parent == null) break;
                 if (parent.GetComponent<Canvas>() != null) break; // hit the canvas
                 if (!(parent is RectTransform parentRt)) break;

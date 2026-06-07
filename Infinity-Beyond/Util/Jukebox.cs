@@ -19,7 +19,7 @@ namespace Infinity_TestMod.Util
                 MelonLogger.Warning($"[Jukebox] invalid id {id}");
                 return;
             }
-            var bgm = BGMusicManager.Instance;
+            BGMusicManager bgm = BGMusicManager.Instance;
             if (bgm == null)
             {
                 MelonLogger.Warning("[Jukebox] no BGMusicManager (no map loaded?)");
@@ -36,7 +36,7 @@ namespace Infinity_TestMod.Util
 
             try
             {
-                var ldr = new SoundtrackLoader();
+                SoundtrackLoader ldr = new();
                 ldr.OnAssetLoaded += (prefabName, clip) =>
                 {
                     try

@@ -1,9 +1,9 @@
+using MelonLoader;
+using MelonLoader.Utils;
 using System;
 using System.Globalization;
 using System.IO;
 using System.Text;
-using MelonLoader;
-using MelonLoader.Utils;
 
 namespace Infinity_TestMod.Util
 {
@@ -21,7 +21,7 @@ namespace Infinity_TestMod.Util
     public static class PacketLog
     {
         private static StreamWriter _fh;
-        private static readonly object _lock = new object();
+        private static readonly object _lock = new();
         public static bool Enabled = true;
         public static string LogPath { get; private set; }
 
@@ -70,7 +70,7 @@ namespace Infinity_TestMod.Util
                 _lastRaw = rawJson;
                 _lastTs = ts;
             }
-            var sb = new StringBuilder(rawJson.Length + 64);
+            StringBuilder sb = new(rawJson.Length + 64);
             sb.Append("{\"ts\":")
               .Append(ts.ToString("F3", CultureInfo.InvariantCulture))
               .Append(",\"dir\":\"").Append(direction)

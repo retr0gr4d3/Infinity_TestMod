@@ -1,6 +1,7 @@
+using MelonLoader;
+using System.Collections.Generic;
 using System.Reflection;
 using UnityEngine;
-using MelonLoader;
 
 namespace Infinity_TestMod.Util
 {
@@ -38,12 +39,12 @@ namespace Infinity_TestMod.Util
         static CameraZoom()
         {
             const BindingFlags Flags = BindingFlags.Instance | BindingFlags.NonPublic;
-            _fCam   = typeof(CameraFollow).GetField("cam", Flags);
+            _fCam = typeof(CameraFollow).GetField("cam", Flags);
             _fHalfH = typeof(CameraFollow).GetField("camHalfHeight", Flags);
             _fHalfW = typeof(CameraFollow).GetField("camHalfWidth", Flags);
 
-            var missing = new System.Collections.Generic.List<string>();
-            if (_fCam   == null) missing.Add("cam");
+            List<string> missing = new();
+            if (_fCam == null) missing.Add("cam");
             if (_fHalfH == null) missing.Add("camHalfHeight");
             if (_fHalfW == null) missing.Add("camHalfWidth");
 
@@ -59,9 +60,9 @@ namespace Infinity_TestMod.Util
             if (!_fieldsResolved) return;
             try
             {
-                var follow = Object.FindObjectOfType<CameraFollow>();
+                CameraFollow follow = Object.FindObjectOfType<CameraFollow>();
                 if (follow == null) return;
-                var cam = _fCam.GetValue(follow) as Camera;
+                Camera cam = _fCam.GetValue(follow) as Camera;
                 if (cam == null) return;
 
                 if (follow != _trackedFollow)

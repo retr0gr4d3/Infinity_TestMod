@@ -1,6 +1,7 @@
 ﻿using HarmonyLib;
-using MelonLoader;
 using Infinity_TestMod.Util;
+using MelonLoader;
+using Newtonsoft.Json.Linq;
 
 namespace Infinity_TestMod.Patches
 {
@@ -119,11 +120,11 @@ namespace Infinity_TestMod.Patches
             if (!maybeQuests && !maybeShop) return;
             try
             {
-                var obj = Newtonsoft.Json.Linq.JObject.Parse(rawJson);
+                JObject obj = Newtonsoft.Json.Linq.JObject.Parse(rawJson);
                 string cmd = (string)obj["Cmd"];
                 if (cmd == "getQuests" && obj["quests"] is Newtonsoft.Json.Linq.JObject qs)
                 {
-                    foreach (var p in qs.Properties())
+                    foreach (JProperty p in qs.Properties())
                     {
                         if (int.TryParse(p.Name, out int qid) && p.Value is Newtonsoft.Json.Linq.JObject qdef)
                             Directory.RecordQuest(qid, qdef);

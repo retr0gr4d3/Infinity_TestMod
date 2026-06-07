@@ -19,9 +19,9 @@ namespace Infinity_TestMod.Util
         // Standard Win32 cursor IDs
         private const int IDC_SIZENWSE = 32642; // ↘↖
         private const int IDC_SIZENESW = 32643; // ↗↙
-        private const int IDC_SIZEWE   = 32644; // ↔
-        private const int IDC_SIZENS   = 32645; // ↕
-        private const int IDC_ARROW    = 32512;
+        private const int IDC_SIZEWE = 32644; // ↔
+        private const int IDC_SIZENS = 32645; // ↕
+        private const int IDC_ARROW = 32512;
 
         // Cached after the first probe so we don't pay the exception cost every frame.
         private static readonly bool _available = ProbeAvailability();
@@ -51,10 +51,10 @@ namespace Infinity_TestMod.Util
             catch { /* ignore — cursor is purely cosmetic */ }
         }
 
-        public static void SetNWSE()       => TrySet(IDC_SIZENWSE);
-        public static void SetNESW()       => TrySet(IDC_SIZENESW);
+        public static void SetNWSE() => TrySet(IDC_SIZENWSE);
+        public static void SetNESW() => TrySet(IDC_SIZENESW);
         public static void SetHorizontal() => TrySet(IDC_SIZEWE);
-        public static void SetVertical()   => TrySet(IDC_SIZENS);
-        public static void SetArrow()      => TrySet(IDC_ARROW);
+        public static void SetVertical() => TrySet(IDC_SIZENS);
+        public static void SetArrow() => TrySet(IDC_ARROW);
     }
 }

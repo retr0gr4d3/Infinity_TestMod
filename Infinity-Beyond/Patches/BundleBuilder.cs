@@ -1,5 +1,5 @@
-using System.Collections.Generic;
 using Infinity_TestMod.Util;
+using System.Collections.Generic;
 
 namespace Infinity_TestMod.Patches
 {
@@ -12,35 +12,35 @@ namespace Infinity_TestMod.Patches
     //   2. Currently equipped item's bundle — best-effort fallback when the
     //      target hasn't been catalogued yet (versions may or may not match).
     //   3. Whatever GetBundleData originally returned — last-ditch fallback.
-    internal static class SpoofBundleBuilder
+    internal static class BundleBuilder
     {
         public static AssetBundleData Build(string targetFilename,
                                             Dictionary<string, ItemCatalog.ItemEntry> catalog,
                                             AssetBundleData equippedBundle,
                                             AssetBundleData fallback)
         {
-            var spoofed = new AssetBundleData(targetFilename);
+            AssetBundleData bundle = new(targetFilename);
 
-            if (catalog != null && catalog.TryGetValue(targetFilename, out var cat))
+            if (catalog != null && catalog.TryGetValue(targetFilename, out ItemCatalog.ItemEntry cat))
             {
-                spoofed.ID = cat.id;
-                spoofed.Name = cat.name;
-                spoofed.VersionContent = cat.verC;
-                spoofed.VersionStage = cat.verS;
-                spoofed.VersionLive = cat.verL;
-                return spoofed;
+                bundle.ID = cat.id;
+                bundle.Name = cat.name;
+                bundle.VersionContent = cat.verC;
+                bundle.VersionStage = cat.verS;
+                bundle.VersionLive = cat.verL;
+                return bundle;
             }
 
             AssetBundleData baseline = equippedBundle ?? fallback;
             if (baseline != null)
             {
-                spoofed.ID = baseline.ID;
-                spoofed.Name = baseline.Name;
-                spoofed.VersionContent = baseline.VersionContent;
-                spoofed.VersionStage = baseline.VersionStage;
-                spoofed.VersionLive = baseline.VersionLive;
+                bundle.ID = baseline.ID;
+                bundle.Name = baseline.Name;
+                bundle.VersionContent = baseline.VersionContent;
+                bundle.VersionStage = baseline.VersionStage;
+                bundle.VersionLive = baseline.VersionLive;
             }
-            return spoofed;
+            return bundle;
         }
     }
 }

@@ -1,6 +1,6 @@
 using HarmonyLib;
-using UnityEngine;
 using Infinity_TestMod.Util;
+using UnityEngine;
 
 namespace Infinity_TestMod.Patches
 {

@@ -1,9 +1,10 @@
+using Infinity_TestMod.Patches;
+using MelonLoader;
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using MelonLoader;
+using System.Reflection;
 using UnityEngine;
-using Infinity_TestMod.Patches;
 
 namespace Infinity_TestMod.Util
 {
@@ -139,7 +140,7 @@ namespace Infinity_TestMod.Util
             ChainEntries = entries;
             ChainName = chainName ?? "";
             ChainIndex = 0;
-            var first = entries[0];
+            QuestChains.Entry first = entries[0];
             BindEntry(first.qid, first.items, first.area, first.frame, first.pad);
             _autoskillsWasOn = TestMod.autoskillsActive;
             Log($"[start] chain '{chainName}' ({entries.Count} entries) — first: {first}");
@@ -173,13 +174,13 @@ namespace Infinity_TestMod.Util
             {
                 switch (State)
                 {
-                    case RunState.Accepting:        TickAccept(); break;
+                    case RunState.Accepting: TickAccept(); break;
                     case RunState.AwaitingAccepted: TickAwaitAccepted(); break;
-                    case RunState.Traveling:        TickTravel(); break;
-                    case RunState.Hunting:          TickHunt(); break;
-                    case RunState.TurningIn:        TickTurnIn(); break;
+                    case RunState.Traveling: TickTravel(); break;
+                    case RunState.Hunting: TickHunt(); break;
+                    case RunState.TurningIn: TickTurnIn(); break;
                     case RunState.AwaitingComplete: TickAwaitComplete(); break;
-                    case RunState.Cooldown:         TickCooldown(); break;
+                    case RunState.Cooldown: TickCooldown(); break;
                 }
             }
             catch (Exception ex)
@@ -263,7 +264,7 @@ namespace Infinity_TestMod.Util
             if (ChainEntries != null && ChainIndex + 1 < ChainEntries.Count)
             {
                 ChainIndex++;
-                var next = ChainEntries[ChainIndex];
+                QuestChains.Entry next = ChainEntries[ChainIndex];
                 BindEntry(next.qid, next.items, next.area, next.frame, next.pad);
                 Log($"[chain] {ChainIndex + 1}/{ChainEntries.Count}: {next}");
                 EnterState(NeedsCellHop() ? RunState.Traveling : RunState.Accepting);
@@ -293,7 +294,7 @@ namespace Infinity_TestMod.Util
                     {
                         string name = Entity.mainPlayer?.Name ?? "";
                         // tfer params: [charname, area, instance("0" = any), frame, pad]
-                        var pkt = new Request("tfer", new List<string>
+                        Request pkt = new("tfer", new List<string>
                         {
                             name,
                             TargetArea,
@@ -438,7 +439,7 @@ namespace Infinity_TestMod.Util
             // Find the first incomplete objective. If none, we're ready to
             // turn in. The quest def's Turnins are the source of truth here —
             // we don't try to interpret them, just check completion per QOID.
-            var nextObjective = NextIncompleteObjective(q);
+            QuestTurninItem nextObjective = NextIncompleteObjective(q);
             if (nextObjective == null)
             {
                 StopAutoskills();
@@ -468,8 +469,8 @@ namespace Infinity_TestMod.Util
             {
                 try
                 {
-                    var go = tgt.getGameObject();
-                    var tb = (go != null) ? go.GetComponent<Targetable>() : null;
+                    GameObject go = tgt.getGameObject();
+                    Targetable tb = (go != null) ? go.GetComponent<Targetable>() : null;
                     if (tb != null)
                     {
                         tb.ClickMe();
@@ -624,9 +625,9 @@ namespace Infinity_TestMod.Util
         QuestTurninItem NextIncompleteObjective(Quest q)
         {
             if (q?.Turnins == null) return null;
-            var pq = Entity.mainPlayer?.Quests;
+            PlayerQuestData pq = Entity.mainPlayer?.Quests;
             if (pq == null) return null;
-            foreach (var t in q.Turnins)
+            foreach (QuestTurninItem t in q.Turnins)
             {
                 if (!pq.IsObjectiveComplete(t.QOID)) return t;
             }
@@ -636,10 +637,10 @@ namespace Infinity_TestMod.Util
         int SumObjectiveProgress(Quest q)
         {
             if (q?.Turnins == null) return 0;
-            var pq = Entity.mainPlayer?.Quests;
+            PlayerQuestData pq = Entity.mainPlayer?.Quests;
             if (pq == null) return 0;
             int sum = 0;
-            foreach (var t in q.Turnins)
+            foreach (QuestTurninItem t in q.Turnins)
             {
                 sum += pq.getQuestObjective(t.QOID)?.Quantity ?? 0;
             }
@@ -694,7 +695,7 @@ namespace Infinity_TestMod.Util
             }
             if (candidates == null) return null;
 
-            var alive = candidates.Where(m =>
+            IEnumerable<Monster> alive = candidates.Where(m =>
                 m != null
                 && string.Equals(m.Frame ?? "", playerFrame, StringComparison.OrdinalIgnoreCase)
                 && m.currentState != Entity.State.Dead
@@ -704,7 +705,7 @@ namespace Infinity_TestMod.Util
             // Nearest by Combat's own range semantics — IsInSight first,
             // then distance. Reusing the game's comparer keeps targeting
             // consistent with what a manual-clicking player would pick.
-            var list = alive.ToList();
+            List<Monster> list = alive.ToList();
             if (list.Count == 0) return null;
             list.Sort(new TargetDistanceComparer(Entity.mainPlayer));
             return list[0];
@@ -727,9 +728,9 @@ namespace Infinity_TestMod.Util
             if (string.IsNullOrEmpty(targetFrame)) return null;
             try
             {
-                var pads = UnityEngine.Object.FindObjectsByType<MapGoToCell>(
+                MapGoToCell[] pads = UnityEngine.Object.FindObjectsByType<MapGoToCell>(
                     UnityEngine.FindObjectsSortMode.None);
-                foreach (var p in pads)
+                foreach (MapGoToCell p in pads)
                 {
                     if (p == null) continue;
                     if (string.Equals(p.TargetCell ?? "", targetFrame, StringComparison.OrdinalIgnoreCase))
@@ -761,10 +762,10 @@ namespace Infinity_TestMod.Util
                 if (Entity.mainPlayer == null) return;
                 EnsureWalkVectorProbed();
                 if (_walkVectorMethod == null) return;
-                var playerGO = Entity.mainPlayer.getGameObject();
+                GameObject playerGO = Entity.mainPlayer.getGameObject();
                 if (playerGO == null || playerGO.transform.parent == null) return;
                 UnityEngine.Vector3 local = playerGO.transform.parent.InverseTransformPoint(worldPos);
-                var v = new UnityEngine.Vector2(local.x, local.y);
+                Vector2 v = new(local.x, local.y);
                 _walkVectorMethod.Invoke(Entity.mainPlayer, new object[] { v });
             }
             catch (Exception ex)
@@ -797,8 +798,8 @@ namespace Infinity_TestMod.Util
         {
             try
             {
-                var playerGO = Entity.mainPlayer?.getGameObject();
-                var targetGO = tgt?.getGameObject();
+                GameObject playerGO = Entity.mainPlayer?.getGameObject();
+                GameObject targetGO = tgt?.getGameObject();
                 if (playerGO == null || targetGO == null) return;
 
                 // Find the movement updater component on the player. The
@@ -806,10 +807,10 @@ namespace Infinity_TestMod.Util
                 // Updater, etc. — anything with a "targetPosition" field.
                 if (!_moverProbed)
                 {
-                    foreach (var comp in playerGO.GetComponents<UnityEngine.Component>())
+                    foreach (Component comp in playerGO.GetComponents<UnityEngine.Component>())
                     {
                         if (comp == null) continue;
-                        var f = comp.GetType().GetField("targetPosition",
+                        FieldInfo f = comp.GetType().GetField("targetPosition",
                             System.Reflection.BindingFlags.Public |
                             System.Reflection.BindingFlags.NonPublic |
                             System.Reflection.BindingFlags.Instance);
@@ -827,7 +828,7 @@ namespace Infinity_TestMod.Util
                 }
                 if (_moverTargetPosField == null) return;
 
-                var mover = playerGO.GetComponent(_moverCompType);
+                Component mover = playerGO.GetComponent(_moverCompType);
                 if (mover == null) return;
                 _moverTargetPosField.SetValue(mover, targetGO.transform.position);
             }
