@@ -328,13 +328,15 @@ namespace Infinity_TestMod
         private static Texture2D buttonBgTexture;
         private static Texture2D buttonBgHoverTexture;
         private static Texture2D separatorTexture;
+        private static Texture2D textFieldTexture;
 
         private static GUIStyle buttonStyle;
         private static GUIStyle windowStyle;
-        private static GUIStyle closeButtonStyle;
+        public static GUIStyle closeButtonStyle;
         private static GUIStyle labelStyle;
         private static GUIStyle textFieldStyle;
         private static GUIStyle logTextStyle;
+        private static GUIStyle containerBoxStyle;
 
         public static TestMod activeInstance = null;
         public static System.Action<string, object[]> reloadedEventReceiver = null;
@@ -671,8 +673,8 @@ namespace Infinity_TestMod
         {
             try
             {
-                Color defaultBorder = new(0.08f, 0.08f, 0.08f, 1f);
-                Color hoverBorder = Color.white;
+                Color defaultBorder = new(0.18f, 0.20f, 0.24f, 1.0f); // Muted dark grey border
+                Color hoverBorder = new(0.28f, 0.31f, 0.37f, 1.0f);   // Muted medium grey border
 
                 buttonTexture = CreateThemedButtonTexture(defaultBorder);
                 buttonHoverTexture = CreateThemedButtonTexture(hoverBorder);
@@ -682,8 +684,10 @@ namespace Infinity_TestMod
                 buttonBgTexture = CreateThemedButtonBgTexture(defaultBorder);
                 buttonBgHoverTexture = CreateThemedButtonBgTexture(hoverBorder);
 
+                textFieldTexture = CreateThemedTextFieldTexture();
+
                 separatorTexture = new Texture2D(1, 1);
-                separatorTexture.SetPixel(0, 0, new Color(0.08f, 0.08f, 0.08f, 1f));
+                separatorTexture.SetPixel(0, 0, new Color(0.14f, 0.16f, 0.18f, 1f));
                 separatorTexture.Apply();
 
                 LoggerInstance.Msg("Generated UI textures.");
@@ -708,13 +712,14 @@ namespace Infinity_TestMod
                 buttonStyle.normal.background = buttonTexture;
                 buttonStyle.hover.background = buttonHoverTexture;
                 buttonStyle.active.background = buttonHoverTexture;
+                buttonStyle.border = new RectOffset(4, 4, 4, 4);
             }
 
             if (windowTexture != null && windowStyle == null)
             {
                 windowStyle = new GUIStyle();
                 windowStyle.normal.background = windowTexture;
-                windowStyle.border = new RectOffset(24, 24, 24, 24);
+                windowStyle.border = new RectOffset(4, 4, 4, 4);
                 windowStyle.normal.textColor = Color.white;
                 windowStyle.alignment = TextAnchor.UpperCenter;
                 windowStyle.fontStyle = FontStyle.Bold;
@@ -728,7 +733,7 @@ namespace Infinity_TestMod
                 closeButtonStyle.normal.background = buttonBgTexture;
                 closeButtonStyle.hover.background = buttonBgHoverTexture;
                 closeButtonStyle.active.background = buttonBgHoverTexture;
-                closeButtonStyle.border = new RectOffset(12, 12, 12, 12);
+                closeButtonStyle.border = new RectOffset(4, 4, 4, 4);
                 closeButtonStyle.normal.textColor = new Color(0.9f, 0.9f, 0.9f, 1f);
                 closeButtonStyle.hover.textColor = Color.white;
                 closeButtonStyle.alignment = TextAnchor.MiddleCenter;
@@ -756,34 +761,55 @@ namespace Infinity_TestMod
                 logTextStyle.richText = true;
             }
 
-            if (textFieldStyle == null)
+            if (textFieldTexture != null && textFieldStyle == null)
             {
-                textFieldStyle = new GUIStyle(GUI.skin.textField);
+                textFieldStyle = new GUIStyle();
+                textFieldStyle.normal.background = textFieldTexture;
+                textFieldStyle.focused.background = textFieldTexture;
+                textFieldStyle.border = new RectOffset(4, 4, 4, 4);
                 textFieldStyle.alignment = TextAnchor.MiddleCenter;
                 textFieldStyle.fontStyle = FontStyle.Normal;
                 textFieldStyle.fontSize = 13;
                 textFieldStyle.normal.textColor = Color.white;
                 textFieldStyle.focused.textColor = Color.white;
+                textFieldStyle.padding = new RectOffset(4, 4, 4, 4);
             }
 
-            if (rowButtonStyle == null)
+            if (buttonBgTexture != null && buttonBgHoverTexture != null && rowButtonStyle == null)
             {
-                rowButtonStyle = new GUIStyle(GUI.skin.button);
+                rowButtonStyle = new GUIStyle();
+                rowButtonStyle.normal.background = buttonBgTexture;
+                rowButtonStyle.hover.background = buttonBgHoverTexture;
+                rowButtonStyle.active.background = buttonBgHoverTexture;
+                rowButtonStyle.border = new RectOffset(4, 4, 4, 4);
                 rowButtonStyle.alignment = TextAnchor.MiddleLeft;
                 rowButtonStyle.fontStyle = FontStyle.Normal;
                 rowButtonStyle.fontSize = 12;
                 rowButtonStyle.richText = true;
                 rowButtonStyle.normal.textColor = new Color(0.9f, 0.9f, 0.9f, 1f);
                 rowButtonStyle.hover.textColor = Color.white;
+                rowButtonStyle.padding = new RectOffset(8, 8, 4, 4);
             }
 
-            if (previewTextStyle == null)
+            if (textFieldTexture != null && previewTextStyle == null)
             {
-                previewTextStyle = new GUIStyle(GUI.skin.textArea);
+                previewTextStyle = new GUIStyle();
+                previewTextStyle.normal.background = textFieldTexture;
+                previewTextStyle.focused.background = textFieldTexture;
+                previewTextStyle.border = new RectOffset(4, 4, 4, 4);
                 previewTextStyle.wordWrap = false;
                 previewTextStyle.richText = false;
                 previewTextStyle.fontSize = 12;
                 previewTextStyle.normal.textColor = Color.white;
+                previewTextStyle.focused.textColor = Color.white;
+                previewTextStyle.padding = new RectOffset(6, 6, 6, 6);
+            }
+
+            if (textFieldTexture != null && containerBoxStyle == null)
+            {
+                containerBoxStyle = new GUIStyle();
+                containerBoxStyle.normal.background = textFieldTexture;
+                containerBoxStyle.border = new RectOffset(4, 4, 4, 4);
             }
 
             if (buttonStyle != null)
@@ -1312,7 +1338,7 @@ namespace Infinity_TestMod
             curY += 20f;
 
             float scrollHeight = 90f;
-            GUI.Box(new Rect(pad, curY, innerW, scrollHeight), "", GUI.skin.box);
+            GUI.Box(new Rect(pad, curY, innerW, scrollHeight), "", containerBoxStyle ?? GUI.skin.box);
 
             float listHeight = Mathf.Max(scrollHeight - 10f, savedSkillsets.Count * 25f);
             retroSkillsetsScroll = GUI.BeginScrollView(
@@ -1969,7 +1995,7 @@ namespace Infinity_TestMod
                 LoggerInstance.Msg("Packet log cleared.");
             }
 
-            GUI.Box(new Rect(pad, 115, innerW, 180), "", GUI.skin.box);
+            GUI.Box(new Rect(pad, 115, innerW, 180), "", containerBoxStyle ?? GUI.skin.box);
 
             float intContentHeight = 170f;
             lock (interceptedPacketsLog)
@@ -2053,7 +2079,7 @@ namespace Infinity_TestMod
                 LoggerInstance.Msg("Sniffer log cleared.");
             }
 
-            GUI.Box(new Rect(pad, 80, innerW, 220), "", GUI.skin.box);
+            GUI.Box(new Rect(pad, 80, innerW, 220), "", containerBoxStyle ?? GUI.skin.box);
 
             float sniffContentHeight = 210f;
             lock (snifferLog)
@@ -2809,7 +2835,7 @@ namespace Infinity_TestMod
             });
 
             float listH = 180f;
-            GUI.Box(new Rect(pad, curY, innerW, listH), "", GUI.skin.box);
+            GUI.Box(new Rect(pad, curY, innerW, listH), "", containerBoxStyle ?? GUI.skin.box);
             float rowH = 22f;
             float contentH = System.Math.Max(listH - 8, matches.Count * rowH + 4);
             catalogScroll = GUI.BeginScrollView(
@@ -3420,7 +3446,7 @@ namespace Infinity_TestMod
 
             // Row 5: event log
             float logY = 295;
-            GUI.Box(new Rect(pad, logY, innerW, 75), "", GUI.skin.box);
+            GUI.Box(new Rect(pad, logY, innerW, 75), "", containerBoxStyle ?? GUI.skin.box);
             float logH;
             lock (questRunnerLog) { logH = System.Math.Max(65f, questRunnerLog.Count * 16f); }
             questRunnerLogScroll = GUI.BeginScrollView(
@@ -3997,13 +4023,11 @@ namespace Infinity_TestMod
                 {
                     int index = y * size + x;
 
-                    float px = x - 64f;
-                    float py = y - 64f;
+                    int distToEdgeX = Mathf.Min(x, size - 1 - x);
+                    int distToEdgeY = Mathf.Min(y, size - 1 - y);
+                    int borderDist = Mathf.Min(distToEdgeX, distToEdgeY);
 
-                    Vector2 pBox = new(Mathf.Abs(px) - 56f + 18f, Mathf.Abs(py) - 56f + 18f);
-                    float boxDist = Mathf.Min(Mathf.Max(pBox.x, pBox.y), 0.0f) + new Vector2(Mathf.Max(pBox.x, 0.0f), Mathf.Max(pBox.y, 0.0f)).magnitude - 18f;
-
-                    if (boxDist > 0f)
+                    if (borderDist < 2)
                     {
                         pixels[index] = Color.clear;
                         continue;
@@ -4011,22 +4035,19 @@ namespace Infinity_TestMod
 
                     Color c;
 
-                    if (boxDist > -4f)
+                    if (borderDist < 6)
                     {
                         c = borderColor;
                     }
                     else
                     {
-                        float tBg = (y - 8f) / 112f;
-                        Color topBg = new(0.35f, 0.35f, 0.35f, 1f);
-                        Color bottomBg = new(0.12f, 0.12f, 0.12f, 1f);
-                        c = Color.Lerp(bottomBg, topBg, tBg);
-
-                        float angle = (x - 64f) * Mathf.PI / 112f;
-                        float glossBoundary = 64f + 14f * Mathf.Cos(angle);
-                        if (y > glossBoundary)
+                        if (borderColor.r > 0.22f)
                         {
-                            c += new Color(0.08f, 0.08f, 0.08f, 0f);
+                            c = new Color(0.16f, 0.18f, 0.22f, 1.0f); // Hover background
+                        }
+                        else
+                        {
+                            c = new Color(0.12f, 0.13f, 0.16f, 1.0f); // Normal background
                         }
                     }
 
@@ -4043,7 +4064,6 @@ namespace Infinity_TestMod
                         }
                         else
                         {
-
                             float tExcl = Mathf.Clamp01((hy - 30f) / 60f);
                             Color orangeSide = new(1.0f, 0.40f, 0.05f, 1f);
                             Color yellowSide = new(1.0f, 0.95f, 0.15f, 1f);
@@ -4095,35 +4115,19 @@ namespace Infinity_TestMod
                 {
                     int index = y * size + x;
 
-                    float px = x - 64f;
-                    float py = y - 64f;
-
-                    Vector2 pBox = new(Mathf.Abs(px) - 58f + 18f, Mathf.Abs(py) - 58f + 18f);
-                    float boxDist = Mathf.Min(Mathf.Max(pBox.x, pBox.y), 0.0f) + new Vector2(Mathf.Max(pBox.x, 0.0f), Mathf.Max(pBox.y, 0.0f)).magnitude - 18f;
-
-                    if (boxDist > 0f)
-                    {
-                        pixels[index] = Color.clear;
-                        continue;
-                    }
+                    int distToEdgeX = Mathf.Min(x, size - 1 - x);
+                    int distToEdgeY = Mathf.Min(y, size - 1 - y);
+                    int borderDist = Mathf.Min(distToEdgeX, distToEdgeY);
 
                     Color c;
 
-                    if (boxDist > -4f)
+                    if (borderDist < 2)
                     {
-                        c = new Color(0.08f, 0.08f, 0.08f, 1f);
+                        c = new Color(0.13f, 0.15f, 0.17f, 1.0f); // Sharp window border
                     }
                     else
                     {
-                        float tBg = (y - 4f) / 120f;
-                        Color topBg = new(0.35f, 0.35f, 0.35f, 1f);
-                        Color bottomBg = new(0.12f, 0.12f, 0.12f, 1f);
-                        c = Color.Lerp(bottomBg, topBg, tBg);
-
-                        if (y > 96)
-                        {
-                            c += new Color(0.08f, 0.08f, 0.08f, 0f);
-                        }
+                        c = new Color(0.06f, 0.07f, 0.08f, 0.85f); // Flat transparent background
                     }
 
                     pixels[index] = c;
@@ -4147,35 +4151,61 @@ namespace Infinity_TestMod
                 {
                     int index = (y * size) + x;
 
-                    float px = x - 32f;
-                    float py = y - 32f;
-
-                    Vector2 pBox = new(Mathf.Abs(px) - 28f + 10f, Mathf.Abs(py) - 28f + 10f);
-                    float boxDist = Mathf.Min(Mathf.Max(pBox.x, pBox.y), 0.0f) + new Vector2(Mathf.Max(pBox.x, 0.0f), Mathf.Max(pBox.y, 0.0f)).magnitude - 10f;
-
-                    if (boxDist > 0f)
-                    {
-                        pixels[index] = Color.clear;
-                        continue;
-                    }
+                    int distToEdgeX = Mathf.Min(x, size - 1 - x);
+                    int distToEdgeY = Mathf.Min(y, size - 1 - y);
+                    int borderDist = Mathf.Min(distToEdgeX, distToEdgeY);
 
                     Color c;
 
-                    if (boxDist > -2f)
+                    if (borderDist < 2)
                     {
                         c = borderColor;
                     }
                     else
                     {
-                        float tBg = (y - 2f) / 60f;
-                        Color topBg = new(0.35f, 0.35f, 0.35f, 1f);
-                        Color bottomBg = new(0.12f, 0.12f, 0.12f, 1f);
-                        c = Color.Lerp(bottomBg, topBg, tBg);
-
-                        if (y > 48)
+                        if (borderColor.r > 0.22f)
                         {
-                            c += new Color(0.08f, 0.08f, 0.08f, 0f);
+                            c = new Color(0.16f, 0.18f, 0.22f, 1.0f); // Hover background
                         }
+                        else
+                        {
+                            c = new Color(0.12f, 0.13f, 0.16f, 1.0f); // Normal background
+                        }
+                    }
+
+                    pixels[index] = c;
+                }
+            }
+
+            tex.SetPixels(pixels);
+            tex.Apply();
+            return tex;
+        }
+
+        private static Texture2D CreateThemedTextFieldTexture()
+        {
+            int size = 64;
+            Texture2D tex = new(size, size, TextureFormat.RGBA32, false);
+            Color[] pixels = new Color[size * size];
+
+            for (int y = 0; y < size; y++)
+            {
+                for (int x = 0; x < size; x++)
+                {
+                    int index = (y * size) + x;
+
+                    int distToEdgeX = Mathf.Min(x, size - 1 - x);
+                    int distToEdgeY = Mathf.Min(y, size - 1 - y);
+                    int borderDist = Mathf.Min(distToEdgeX, distToEdgeY);
+
+                    Color c;
+                    if (borderDist < 2)
+                    {
+                        c = new Color(0.14f, 0.16f, 0.18f, 1.0f); // Subtle dark gray border
+                    }
+                    else
+                    {
+                        c = new Color(0.08f, 0.09f, 0.10f, 1.0f); // Extra dark background
                     }
 
                     pixels[index] = c;

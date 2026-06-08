@@ -98,14 +98,16 @@ namespace Infinity_TestMod.Util
             // Wrapper callback to render content and draw the resize handle on top
             GUI.WindowFunction wrapperFunc = (winId) =>
             {
+                float localH = screenRect.height / scale;
+
                 // Process resize events FIRST so we capture mouse clicks before GUI.DragWindow can consume them
-                HandleResizeEvents(winId, baseW, scale, screenRect);
+                HandleResizeEvents(winId, baseW, localH, scale, screenRect);
                 
                 // Draw window contents
                 func(winId);
                 
                 // Draw the resize handle visually on top of everything
-                DrawResizeBoxVisual(baseW);
+                DrawResizeBoxVisual(baseW, localH);
             };
 
             if (style != null)
@@ -134,13 +136,13 @@ namespace Infinity_TestMod.Util
             return new Rect(newScaledRect.x * scale, newScaledRect.y * scale, newScaledRect.width * scale, newScaledRect.height * scale);
         }
 
-        private static void HandleResizeEvents(int id, float baseW, float scale, Rect screenRect)
+        private static void HandleResizeEvents(int id, float baseW, float localH, float scale, Rect screenRect)
         {
             Event evt = Event.current;
             if (evt != null)
             {
                 Vector2 localMouse = evt.mousePosition;
-                Rect handleRect = new Rect(baseW - 24f, 4f, 20f, 20f);
+                Rect handleRect = new Rect(baseW - 20f, localH - 20f, 20f, 20f);
                 
                 if (evt.type == EventType.MouseDown && handleRect.Contains(localMouse))
                 {
@@ -184,13 +186,26 @@ namespace Infinity_TestMod.Util
             }
         }
 
-        private static void DrawResizeBoxVisual(float baseW)
+        private static void DrawResizeBoxVisual(float baseW, float localH)
         {
-            // Position the box in the top-right corner of the title bar
-            Rect handleRect = new Rect(baseW - 24f, 4f, 20f, 20f);
+            // Position the box in the bottom-right corner of the window
+            Rect handleRect = new Rect(baseW - 20f, localH - 20f, 20f, 20f);
             
-            // Draw a neat button with a diagonal resize symbol
-            GUI.Box(handleRect, "⤢", GUI.skin.button);
+            // Draw a neat label with diagonal slashes "///"
+            GUIStyle gripStyle = new GUIStyle();
+            gripStyle.alignment = TextAnchor.LowerRight;
+            gripStyle.fontSize = 11;
+            gripStyle.fontStyle = FontStyle.Bold;
+            
+            // Hover highlight color matching
+            bool isHovering = handleRect.Contains(Event.current.mousePosition);
+            gripStyle.normal.textColor = isHovering 
+                ? new Color(0.47f, 0.52f, 0.62f, 1.0f) // Highlight color
+                : new Color(0.28f, 0.31f, 0.37f, 1.0f); // Default dark grey
+                
+            gripStyle.padding = new RectOffset(0, 4, 0, 4);
+            
+            GUI.Label(handleRect, "///", gripStyle);
         }
     }
 }
