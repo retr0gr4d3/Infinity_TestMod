@@ -1,14 +1,13 @@
 @echo off
 setlocal enabledelayedexpansion
 
-:: All paths are relative to this bat file.
 set ROOT=%~dp0
 set SLN=%ROOT%Infinity_TestMod.sln
 set OUT=%ROOT%Infinity-Beyond\bin\Release
 set BUILD=%ROOT%build
 
 echo ========================================
-echo  Building Infinity-Beyond Mod
+echo  Building Project
 echo ========================================
 echo.
 
@@ -16,26 +15,25 @@ dotnet build "%SLN%" -c Release
 
 if !ERRORLEVEL! NEQ 0 (
     echo.
-    echo BUILD FAILED. Check errors above.
+    echo BUILD FAILED
     pause
     exit /b 1
 )
 
-:: Find most recently modified Beyond DLL
 set "DLL="
 
 for /f "delims=" %%F in ('
-    powershell -NoProfile -ExecutionPolicy Bypass -Command ^
-    "(Get-ChildItem '%OUT%\Beyond_*.dll' -ErrorAction SilentlyContinue | Sort-Object LastWriteTime -Descending | Select-Object -First 1).Name"
+    powershell -NoProfile -ExecutionPolicy Bypass ^
+    -Command "Get-ChildItem -Path '%OUT%' -Filter 'Beyond_*.dll' -ErrorAction SilentlyContinue ^
+              | Sort-Object LastWriteTime -Descending ^
+              | Select-Object -First 1 -ExpandProperty Name"
 ') do (
     set "DLL=%%F"
 )
 
 if not defined DLL (
-    echo.
-    echo ERROR: No Beyond DLL found.
-    echo Searched:
-    echo %OUT%\Beyond_*.dll
+    echo ERROR: No DLL found in output folder
+    echo %OUT%
     pause
     exit /b 1
 )
@@ -45,21 +43,14 @@ if not exist "%BUILD%" mkdir "%BUILD%"
 copy /Y "%OUT%\!DLL!" "%BUILD%\" >nul
 
 if !ERRORLEVEL! NEQ 0 (
-    echo.
-    echo ERROR: Failed to copy DLL.
+    echo ERROR: Copy failed
     pause
     exit /b 1
 )
 
 echo.
-echo Build succeeded!
+echo Build complete.
+echo Output: %BUILD%\!DLL!
 echo.
-echo DLL:
-echo !DLL!
-echo.
-echo Copied to:
-echo %BUILD%
-echo.
-echo Closing in 3 seconds...
-timeout /t 3 /nobreak >nul
+timeout /t 2 >nul
 exit /b 0
